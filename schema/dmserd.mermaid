@@ -1,0 +1,182 @@
+erDiagram
+    COMPANY ||--o{ APP_USER : "employs"
+    COMPANY ||--o{ CUSTOMER : "has"
+    COMPANY ||--o{ PRODUCT : "sells"
+    COMPANY ||--o{ DELIVERY_BATCH : "owns"
+    COMPANY ||--o{ DELIVERY : "owns"
+
+    ROLE ||--o{ APP_USER : "grants"
+
+    APP_USER ||--o{ DELIVERY_BATCH : "drives (batch)"
+    APP_USER ||--o{ DELIVERY : "drives"
+    APP_USER ||--o{ DELIVERY_HISTORY : "logs"
+    APP_USER ||--o{ ATTACHMENT : "uploads"
+
+    CUSTOMER ||--o{ ADDRESS : "has"
+    CUSTOMER ||--o{ DELIVERY : "receives"
+
+    ADDRESS ||--o{ DELIVERY : "destination of"
+
+    PRODUCT ||--o{ DELIVERY_PRODUCT : "included in"
+
+    DELIVERY_STATUS ||--o{ DELIVERY : "current status of"
+    DELIVERY_STATUS ||--o{ DELIVERY_HISTORY : "recorded in"
+
+    DELIVERY_BATCH ||--o{ DELIVERY : "groups"
+
+    DELIVERY ||--o{ DELIVERY_PRODUCT : "contains"
+    DELIVERY ||--o{ DELIVERY_HISTORY : "tracked by"
+    DELIVERY ||--o{ ATTACHMENT : "has"
+    DELIVERY ||--o{ DELIVERY : "retry chain (parent/group)"
+
+    COMPANY {
+        uuid company_id PK
+        varchar company_name
+        varchar trade_name
+        varchar phone
+        varchar email
+        boolean is_active
+        timestamp inactivated_at
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    ROLE {
+        uuid role_id PK
+        varchar role_name UK
+        text description
+        boolean is_active
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    APP_USER {
+        uuid user_id PK
+        uuid company_id FK
+        uuid role_id FK
+        varchar full_name
+        varchar email UK
+        text password_hash
+        varchar phone
+        timestamp last_login_at
+        boolean is_active
+        timestamp inactivated_at
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    CUSTOMER {
+        uuid customer_id PK
+        uuid company_id FK
+        varchar full_name
+        varchar phone
+        text notes
+        boolean is_active
+        timestamp inactivated_at
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    ADDRESS {
+        uuid address_id PK
+        uuid customer_id FK
+        varchar zip_code
+        varchar street
+        varchar number
+        varchar district
+        varchar city
+        char state
+        varchar complement
+        numeric latitude
+        numeric longitude
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    PRODUCT {
+        uuid product_id PK
+        uuid company_id FK
+        varchar product_name
+        varchar sku
+        varchar unit
+        numeric price
+        boolean is_active
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    DELIVERY_STATUS {
+        uuid delivery_status_id PK
+        varchar status_code UK
+        varchar status_name
+        varchar status_type
+        text description
+        varchar color_hex
+        varchar icon
+        integer display_order
+        boolean requires_observation
+        boolean allows_reschedule
+        boolean finishes_delivery
+        boolean is_active
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    DELIVERY_BATCH {
+        bigserial delivery_batch_id PK
+        uuid company_id FK
+        uuid driver_user_id FK
+        varchar batch_code
+        date delivery_date
+        text notes
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    DELIVERY {
+        bigserial delivery_id PK
+        uuid company_id FK
+        bigint delivery_batch_id FK
+        uuid customer_id FK
+        uuid address_id FK
+        uuid driver_user_id FK
+        uuid delivery_status_id FK
+        bigint delivery_group_id FK
+        bigint parent_delivery_id FK
+        integer attempt_number
+        integer delivery_order
+        timestamp estimated_time
+        timestamp started_at
+        timestamp finished_at
+        text notes
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    DELIVERY_PRODUCT {
+        bigserial delivery_product_id PK
+        bigint delivery_id FK
+        uuid product_id FK
+        numeric quantity
+        text notes
+    }
+
+    DELIVERY_HISTORY {
+        bigserial delivery_history_id PK
+        bigint delivery_id FK
+        uuid user_id FK
+        uuid delivery_status_id FK
+        text description
+        numeric latitude
+        numeric longitude
+        timestamp created_at
+    }
+
+    ATTACHMENT {
+        bigserial attachment_id PK
+        bigint delivery_id FK
+        varchar attachment_type
+        text file_url
+        uuid uploaded_by FK
+        timestamp created_at
+    }

@@ -1,0 +1,214 @@
+-- =====================================================================
+-- Delivery Database Schema (PostgreSQL) — v0.3
+-- Ported verbatim from schema/dmsschema.sql. This is the single source
+-- of truth for the initial schema; later changes get their own numbered
+-- migration rather than edits here.
+-- =====================================================================
+
+CREATE EXTENSION IF NOT EXISTS pgcrypto; -- provides gen_random_uuid()
+
+-- ---------------------------------------------------------------------
+-- company
+-- ---------------------------------------------------------------------
+CREATE TABLE company (
+    company_id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_name    VARCHAR(150) NOT NULL,
+    trade_name      VARCHAR(150),
+    phone           VARCHAR(20),
+    email           VARCHAR(150),
+    is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+    inactivated_at  TIMESTAMP,
+    created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- ---------------------------------------------------------------------
+-- role
+-- ---------------------------------------------------------------------
+CREATE TABLE role (
+    role_id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    role_name    VARCHAR(60) NOT NULL UNIQUE,
+    description  TEXT,
+    is_active    BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at   TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at   TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- ---------------------------------------------------------------------
+-- app_user  (was "User" -- USER is a reserved keyword in Postgres)
+-- ---------------------------------------------------------------------
+CREATE TABLE app_user (
+    user_id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id      UUID NOT NULL REFERENCES company(company_id),
+    role_id         UUID NOT NULL REFERENCES role(role_id),
+    full_name       VARCHAR(150) NOT NULL,
+    email           VARCHAR(150) NOT NULL UNIQUE,
+    password_hash   TEXT NOT NULL,
+    phone           VARCHAR(20),
+    last_login_at   TIMESTAMP,
+    is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+    inactivated_at  TIMESTAMP,
+    created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_app_user_company ON app_user(company_id);
+
+-- ---------------------------------------------------------------------
+-- customer
+-- ---------------------------------------------------------------------
+CREATE TABLE customer (
+    customer_id     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id      UUID NOT NULL REFERENCES company(company_id),
+    full_name       VARCHAR(150) NOT NULL,
+    phone           VARCHAR(20),
+    notes           TEXT,
+    is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+    inactivated_at  TIMESTAMP,
+    created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_customer_company ON customer(company_id);
+
+-- ---------------------------------------------------------------------
+-- address
+-- ---------------------------------------------------------------------
+CREATE TABLE address (
+    address_id   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    customer_id  UUID NOT NULL REFERENCES customer(customer_id),
+    zip_code     VARCHAR(10),
+    street       VARCHAR(150) NOT NULL,
+    number       VARCHAR(20),
+    district     VARCHAR(100),
+    city         VARCHAR(100) NOT NULL,
+    state        CHAR(2) NOT NULL,
+    complement   VARCHAR(150),
+    latitude     NUMERIC(10,7),
+    longitude    NUMERIC(10,7),
+    created_at   TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at   TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_address_customer ON address(customer_id);
+
+-- ---------------------------------------------------------------------
+-- product  (NEW -- required by delivery_product, missing from spec)
+-- ---------------------------------------------------------------------
+CREATE TABLE product (
+    product_id    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id    UUID NOT NULL REFERENCES company(company_id),
+    product_name  VARCHAR(150) NOT NULL,
+    sku           VARCHAR(50),
+    unit          VARCHAR(20),          -- e.g. UN, KG, CX
+    price         NUMERIC(10,2),
+    is_active     BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at    TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_product_company ON product(company_id);
+
+-- ---------------------------------------------------------------------
+-- delivery_status  (seed/reference table, maintained by developers)
+-- ---------------------------------------------------------------------
+CREATE TABLE delivery_status (
+    delivery_status_id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    status_code             VARCHAR(50) NOT NULL UNIQUE,
+    status_name             VARCHAR(100) NOT NULL,
+    status_type             VARCHAR(20) NOT NULL CHECK (status_type IN ('PROCESS', 'RESULT')),
+    description             TEXT,
+    color_hex               VARCHAR(7) NOT NULL,   -- #RRGGBB
+    icon                    VARCHAR(50),
+    display_order           INTEGER NOT NULL,
+    requires_observation    BOOLEAN NOT NULL DEFAULT FALSE,
+    allows_reschedule       BOOLEAN NOT NULL DEFAULT FALSE,
+    finishes_delivery       BOOLEAN NOT NULL DEFAULT FALSE,
+    is_active               BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at              TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at              TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- ---------------------------------------------------------------------
+-- delivery_batch
+-- ---------------------------------------------------------------------
+CREATE TABLE delivery_batch (
+    delivery_batch_id  BIGSERIAL PRIMARY KEY,
+    company_id         UUID NOT NULL REFERENCES company(company_id),
+    driver_user_id     UUID NOT NULL REFERENCES app_user(user_id),
+    batch_code         VARCHAR(30) NOT NULL,
+    delivery_date      DATE NOT NULL,
+    notes              TEXT,
+    created_at         TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at         TIMESTAMP NOT NULL DEFAULT NOW(),
+    UNIQUE (company_id, batch_code)
+);
+CREATE INDEX idx_delivery_batch_company_date ON delivery_batch(company_id, delivery_date);
+CREATE INDEX idx_delivery_batch_driver ON delivery_batch(driver_user_id);
+
+-- ---------------------------------------------------------------------
+-- delivery
+-- ---------------------------------------------------------------------
+CREATE TABLE delivery (
+    delivery_id          BIGSERIAL PRIMARY KEY,
+    company_id           UUID NOT NULL REFERENCES company(company_id),
+    delivery_batch_id    BIGINT NOT NULL REFERENCES delivery_batch(delivery_batch_id),
+    customer_id          UUID NOT NULL REFERENCES customer(customer_id),
+    address_id           UUID NOT NULL REFERENCES address(address_id),
+    driver_user_id       UUID NOT NULL REFERENCES app_user(user_id),
+    delivery_status_id   UUID NOT NULL REFERENCES delivery_status(delivery_status_id),
+    delivery_group_id    BIGINT REFERENCES delivery(delivery_id),  -- root delivery of the retry chain
+    parent_delivery_id   BIGINT REFERENCES delivery(delivery_id),  -- previous attempt
+    attempt_number       INTEGER NOT NULL DEFAULT 1,
+    delivery_order       INTEGER NOT NULL,
+    estimated_time       TIMESTAMP,
+    started_at           TIMESTAMP,
+    finished_at          TIMESTAMP,
+    notes                TEXT,
+    created_at           TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at           TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_delivery_company ON delivery(company_id);
+CREATE INDEX idx_delivery_batch ON delivery(delivery_batch_id);
+CREATE INDEX idx_delivery_customer ON delivery(customer_id);
+CREATE INDEX idx_delivery_driver ON delivery(driver_user_id);
+CREATE INDEX idx_delivery_status ON delivery(delivery_status_id);
+CREATE INDEX idx_delivery_group ON delivery(delivery_group_id);
+CREATE INDEX idx_delivery_parent ON delivery(parent_delivery_id);
+
+-- ---------------------------------------------------------------------
+-- delivery_product
+-- ---------------------------------------------------------------------
+CREATE TABLE delivery_product (
+    delivery_product_id  BIGSERIAL PRIMARY KEY,
+    delivery_id          BIGINT NOT NULL REFERENCES delivery(delivery_id),
+    product_id           UUID NOT NULL REFERENCES product(product_id),
+    quantity             NUMERIC(10,2) NOT NULL,
+    notes                TEXT
+);
+CREATE INDEX idx_delivery_product_delivery ON delivery_product(delivery_id);
+CREATE INDEX idx_delivery_product_product ON delivery_product(product_id);
+
+-- ---------------------------------------------------------------------
+-- delivery_history
+-- ---------------------------------------------------------------------
+CREATE TABLE delivery_history (
+    delivery_history_id  BIGSERIAL PRIMARY KEY,
+    delivery_id          BIGINT NOT NULL REFERENCES delivery(delivery_id),
+    user_id              UUID NOT NULL REFERENCES app_user(user_id),
+    delivery_status_id   UUID NOT NULL REFERENCES delivery_status(delivery_status_id),
+    description          TEXT,
+    latitude             NUMERIC(10,7),
+    longitude            NUMERIC(10,7),
+    created_at           TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_delivery_history_delivery ON delivery_history(delivery_id);
+
+-- ---------------------------------------------------------------------
+-- attachment  (NEW -- required by UC-15: photo/signature)
+-- ---------------------------------------------------------------------
+CREATE TABLE attachment (
+    attachment_id     BIGSERIAL PRIMARY KEY,
+    delivery_id       BIGINT NOT NULL REFERENCES delivery(delivery_id),
+    attachment_type   VARCHAR(20) NOT NULL CHECK (attachment_type IN ('PHOTO', 'SIGNATURE')),
+    file_url          TEXT NOT NULL,
+    uploaded_by       UUID REFERENCES app_user(user_id),
+    created_at        TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_attachment_delivery ON attachment(delivery_id);
