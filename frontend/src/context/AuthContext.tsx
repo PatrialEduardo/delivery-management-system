@@ -5,6 +5,7 @@ interface AuthUser {
   userId: string
   fullName: string
   email: string
+  role: string
 }
 
 interface AuthContextValue {
@@ -49,6 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY)
     localStorage.removeItem(USER_KEY)
+    sessionStorage.removeItem('dms_boot_redirect_done')
     setUser(null)
   }, [])
 

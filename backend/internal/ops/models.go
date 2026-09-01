@@ -42,18 +42,43 @@ type Customer struct {
 
 // Delivery is one stop inside a shipping.
 type Delivery struct {
-	ID            int64   `json:"id"`
-	Order         int     `json:"order"`
-	CustomerID    string  `json:"customerId"`
-	CustomerName  string  `json:"customerName"`
-	AddressID     string  `json:"addressId"`
-	AddressLine   string  `json:"addressLine"`
-	StatusID      string  `json:"statusId"`
-	StatusCode    string  `json:"statusCode"`
-	StatusName    string  `json:"statusName"`
-	StatusColor   string  `json:"statusColor"`
-	AttemptNumber int     `json:"attemptNumber"`
-	Notes         *string `json:"notes"`
+	ID            int64    `json:"id"`
+	Order         int      `json:"order"`
+	CustomerID    string   `json:"customerId"`
+	CustomerName  string   `json:"customerName"`
+	CustomerPhone *string  `json:"customerPhone"`
+	AddressID     string   `json:"addressId"`
+	AddressLine   string   `json:"addressLine"`
+	Lat           *float64 `json:"lat"`
+	Lng           *float64 `json:"lng"`
+	StatusID      string   `json:"statusId"`
+	StatusCode    string   `json:"statusCode"`
+	StatusName    string   `json:"statusName"`
+	StatusColor   string   `json:"statusColor"`
+	AttemptNumber int      `json:"attemptNumber"`
+	Notes         *string  `json:"notes"`
+	StartedAt     *string  `json:"startedAt"`  // RFC3339, nil until started
+	FinishedAt    *string  `json:"finishedAt"` // RFC3339, nil until finished
+}
+
+// ActiveDelivery points a driver back to the stop they left in progress.
+type ActiveDelivery struct {
+	ShippingID int64 `json:"shippingId"`
+	DeliveryID int64 `json:"deliveryId"`
+}
+
+// ---- driver request bodies ----
+
+type geoBody struct {
+	Lat *float64 `json:"lat"`
+	Lng *float64 `json:"lng"`
+}
+
+type finishReq struct {
+	Outcome string   `json:"outcome"` // COMPLETE | ABSENT | TROUBLE
+	Note    string   `json:"note"`
+	Lat     *float64 `json:"lat"`
+	Lng     *float64 `json:"lng"`
 }
 
 type Shipping struct {

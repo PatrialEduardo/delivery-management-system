@@ -8,20 +8,22 @@ import (
 )
 
 // Claims carries exactly what downstream handlers need to enforce
-// multi-tenancy and RBAC (company_id, role_id) without a DB round trip
-// on every request.
+// multi-tenancy and RBAC (company_id, role_id, role name) without a DB
+// round trip on every request.
 type Claims struct {
 	UserID    string `json:"userId"`
 	CompanyID string `json:"companyId"`
 	RoleID    string `json:"roleId"`
+	Role      string `json:"role"` // human-readable role name, e.g. "Driver"
 	jwt.RegisteredClaims
 }
 
-func GenerateToken(userID, companyID, roleID, secret string, ttl time.Duration) (string, error) {
+func GenerateToken(userID, companyID, roleID, role, secret string, ttl time.Duration) (string, error) {
 	claims := Claims{
 		UserID:    userID,
 		CompanyID: companyID,
 		RoleID:    roleID,
+		Role:      role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(ttl)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

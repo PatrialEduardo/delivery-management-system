@@ -50,6 +50,13 @@ func (h *Handler) Register(r chi.Router) {
 	r.Patch("/shippings/{shippingID}/deliveries/order", h.reorderDeliveries)
 
 	r.Get("/deliveries", h.listLinkableDeliveries)
+
+	// Driver-facing: scoped to the shippings assigned to the caller.
+	r.Get("/me/shippings", h.myShippings)
+	r.Get("/me/shippings/{shippingID}", h.myShipping)
+	r.Get("/me/active-delivery", h.myActiveDelivery)
+	r.Post("/deliveries/{deliveryID}/start", h.startDelivery)
+	r.Post("/deliveries/{deliveryID}/finish", h.finishDelivery)
 }
 
 func chiURLParam(r *http.Request, key string) string {
@@ -76,4 +83,15 @@ func requireCompany(w http.ResponseWriter, r *http.Request) (string, bool) {
 		return "", false
 	}
 	return cid, true
+}
+
+// requireClaims writes a 401 and returns (nil, false) when there are no
+// usable JWT claims. Driver routes need the user id, not just the company.
+func requireClaims(w http.ResponseWriter, r *http.Request) (*auth.Claims, bool) {
+	claims, ok := auth.ClaimsFromContext(r.Context())
+	if !ok || claims.CompanyID == "" || claims.UserID == "" {
+		httpx.WriteError(w, http.StatusUnauthorized, "not authenticated")
+		return nil, false
+	}
+	return claims, true
 }

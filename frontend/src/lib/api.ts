@@ -36,7 +36,13 @@ export interface LoginResponse {
     userId: string
     fullName: string
     email: string
+    role: string
   }
+}
+
+export interface ActiveDelivery {
+  shippingId: number
+  deliveryId: number
 }
 
 export interface DeliveryStatus {
@@ -81,14 +87,19 @@ export interface Delivery {
   order: number
   customerId: string
   customerName: string
+  customerPhone: string | null
   addressId: string
   addressLine: string
+  lat: number | null
+  lng: number | null
   statusId: string
   statusCode: string
   statusName: string
   statusColor: string
   attemptNumber: number
   notes: string | null
+  startedAt: string | null
+  finishedAt: string | null
 }
 
 export interface Shipping {
@@ -151,7 +162,8 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     }),
-  me: () => request<{ userId: string; companyId: string; roleId: string }>('/auth/me'),
+  me: () =>
+    request<{ userId: string; companyId: string; roleId: string; role: string }>('/auth/me'),
 
   deliveryStatuses: () => request<DeliveryStatus[]>('/delivery-statuses'),
   drivers: () => request<Driver[]>('/drivers'),
@@ -194,5 +206,30 @@ export const api = {
     request<{ deliveries: Delivery[] }>(`/shippings/${shippingId}/deliveries/order`, {
       method: 'PATCH',
       body: JSON.stringify({ deliveryIds }),
+    }),
+
+  // ---- driver ----
+  myShippings: (date: string) =>
+    request<{ date: string; shippings: Shipping[] }>(`/me/shippings${qs({ date })}`),
+  myShipping: (shippingId: number) => request<Shipping>(`/me/shippings/${shippingId}`),
+  activeDelivery: () =>
+    request<{ active: ActiveDelivery | null }>('/me/active-delivery').then((r) => r.active),
+  startDelivery: (deliveryId: number, geo?: { lat: number; lng: number } | null) =>
+    request<Delivery>(`/deliveries/${deliveryId}/start`, {
+      method: 'POST',
+      body: JSON.stringify(geo ?? {}),
+    }),
+  finishDelivery: (
+    deliveryId: number,
+    body: {
+      outcome: 'COMPLETE' | 'ABSENT' | 'TROUBLE'
+      note?: string
+      lat?: number | null
+      lng?: number | null
+    },
+  ) =>
+    request<Delivery>(`/deliveries/${deliveryId}/finish`, {
+      method: 'POST',
+      body: JSON.stringify(body),
     }),
 }

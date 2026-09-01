@@ -21,10 +21,11 @@ type scanner interface{ Scan(dest ...any) error }
 
 const deliveryCols = `
 	d.delivery_id, d.delivery_order,
-	d.customer_id, c.full_name,
+	d.customer_id, c.full_name, c.phone,
 	d.address_id, a.street, a.number, a.district, a.city, a.state,
+	a.latitude::float8, a.longitude::float8,
 	d.delivery_status_id, s.status_code, s.status_name, s.color_hex,
-	d.attempt_number, d.notes`
+	d.attempt_number, d.notes, d.started_at, d.finished_at`
 
 const deliveryJoins = `
 	FROM delivery d
@@ -32,20 +33,32 @@ const deliveryJoins = `
 	JOIN address a ON a.address_id = d.address_id
 	JOIN delivery_status s ON s.delivery_status_id = d.delivery_status_id`
 
+func rfc3339Ptr(t *time.Time) *string {
+	if t == nil {
+		return nil
+	}
+	s := t.UTC().Format(time.RFC3339)
+	return &s
+}
+
 func scanDelivery(s scanner) (Delivery, error) {
 	var d Delivery
 	var street, city, state string
 	var number, district *string
+	var startedAt, finishedAt *time.Time
 	if err := s.Scan(
 		&d.ID, &d.Order,
-		&d.CustomerID, &d.CustomerName,
+		&d.CustomerID, &d.CustomerName, &d.CustomerPhone,
 		&d.AddressID, &street, &number, &district, &city, &state,
+		&d.Lat, &d.Lng,
 		&d.StatusID, &d.StatusCode, &d.StatusName, &d.StatusColor,
-		&d.AttemptNumber, &d.Notes,
+		&d.AttemptNumber, &d.Notes, &startedAt, &finishedAt,
 	); err != nil {
 		return d, err
 	}
 	d.AddressLine = addressLine(street, number, district, city, state)
+	d.StartedAt = rfc3339Ptr(startedAt)
+	d.FinishedAt = rfc3339Ptr(finishedAt)
 	return d, nil
 }
 
@@ -70,7 +83,7 @@ func normalizeDate(raw string) (string, error) {
 // ---------------------------------------------------------------------
 
 func (r *Repository) Home(ctx context.Context, companyID, day string) (*HomePayload, error) {
-	shippings, err := r.shippingsForDay(ctx, companyID, day)
+	shippings, err := r.shippingsForDay(ctx, companyID, "", day)
 	if err != nil {
 		return nil, err
 	}
@@ -81,16 +94,29 @@ func (r *Repository) Home(ctx context.Context, companyID, day string) (*HomePayl
 	return &HomePayload{Date: day, Shippings: shippings, StatusSummary: summary}, nil
 }
 
-func (r *Repository) shippingsForDay(ctx context.Context, companyID, day string) ([]Shipping, error) {
+// DriverDay is one driver's own shippings for a date, no status summary.
+func (r *Repository) DriverDay(ctx context.Context, companyID, driverID, day string) ([]Shipping, error) {
+	return r.shippingsForDay(ctx, companyID, driverID, day)
+}
+
+// shippingsForDay lists shippings for a company on a date. A non-empty
+// driverID narrows it to that driver's shippings.
+func (r *Repository) shippingsForDay(ctx context.Context, companyID, driverID, day string) ([]Shipping, error) {
+	var driverArg any
+	if driverID != "" {
+		driverArg = driverID
+	}
+
 	const shipQ = `
 		SELECT b.delivery_batch_id, b.batch_code, b.delivery_date,
 		       b.driver_user_id, u.full_name, b.notes
 		FROM delivery_batch b
 		JOIN app_user u ON u.user_id = b.driver_user_id
 		WHERE b.company_id = $1 AND b.delivery_date = $2::date
+		  AND ($3::uuid IS NULL OR b.driver_user_id = $3::uuid)
 		ORDER BY b.batch_code`
 
-	rows, err := r.db.Query(ctx, shipQ, companyID, day)
+	rows, err := r.db.Query(ctx, shipQ, companyID, day, driverArg)
 	if err != nil {
 		return nil, err
 	}
@@ -122,9 +148,10 @@ func (r *Repository) shippingsForDay(ctx context.Context, companyID, day string)
 		SELECT d.delivery_batch_id,` + deliveryCols + deliveryJoins + `
 		JOIN delivery_batch b ON b.delivery_batch_id = d.delivery_batch_id
 		WHERE d.company_id = $1 AND b.delivery_date = $2::date
+		  AND ($3::uuid IS NULL OR b.driver_user_id = $3::uuid)
 		ORDER BY d.delivery_batch_id, d.delivery_order, d.delivery_id`
 
-	drows, err := r.db.Query(ctx, delQ, companyID, day)
+	drows, err := r.db.Query(ctx, delQ, companyID, day, driverArg)
 	if err != nil {
 		return nil, err
 	}
@@ -134,18 +161,22 @@ func (r *Repository) shippingsForDay(ctx context.Context, companyID, day string)
 		var batchID int64
 		var street, city, state string
 		var number, district *string
+		var startedAt, finishedAt *time.Time
 		var d Delivery
 		if err := drows.Scan(
 			&batchID,
 			&d.ID, &d.Order,
-			&d.CustomerID, &d.CustomerName,
+			&d.CustomerID, &d.CustomerName, &d.CustomerPhone,
 			&d.AddressID, &street, &number, &district, &city, &state,
+			&d.Lat, &d.Lng,
 			&d.StatusID, &d.StatusCode, &d.StatusName, &d.StatusColor,
-			&d.AttemptNumber, &d.Notes,
+			&d.AttemptNumber, &d.Notes, &startedAt, &finishedAt,
 		); err != nil {
 			return nil, err
 		}
 		d.AddressLine = addressLine(street, number, district, city, state)
+		d.StartedAt = rfc3339Ptr(startedAt)
+		d.FinishedAt = rfc3339Ptr(finishedAt)
 		if s, ok := byID[batchID]; ok {
 			s.Deliveries = append(s.Deliveries, d)
 		}

@@ -8,11 +8,11 @@ import (
 // Config holds everything the API needs at boot, read once from the
 // environment. Nothing here is hardcoded — see .env.example.
 type Config struct {
-	Port          string
-	DatabaseURL   string
-	JWTSecret     string
+	Port           string
+	DatabaseURL    string
+	JWTSecret      string
 	AccessTokenTTL time.Duration
-	AllowedOrigin string
+	AllowedOrigin  string
 }
 
 func Load() Config {
