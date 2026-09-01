@@ -12,6 +12,7 @@ import (
 	"github.com/PatrialEduardo/delivery-management-system/backend/internal/config"
 	"github.com/PatrialEduardo/delivery-management-system/backend/internal/database"
 	appmw "github.com/PatrialEduardo/delivery-management-system/backend/internal/middleware"
+	"github.com/PatrialEduardo/delivery-management-system/backend/internal/ops"
 	"github.com/PatrialEduardo/delivery-management-system/backend/internal/user"
 )
 
@@ -30,6 +31,7 @@ func main() {
 
 	userRepo := user.NewRepository(db)
 	authHandler := appauth.NewHandler(userRepo, cfg.JWTSecret, cfg.AccessTokenTTL)
+	opsHandler := ops.NewHandler(db)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
@@ -53,6 +55,7 @@ func main() {
 	r.Group(func(pr chi.Router) {
 		pr.Use(appmw.RequireAuth(cfg.JWTSecret))
 		pr.Get("/auth/me", authHandler.Me)
+		opsHandler.Register(pr)
 	})
 
 	log.Printf("API listening on :%s", cfg.Port)

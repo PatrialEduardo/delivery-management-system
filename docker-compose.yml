@@ -50,6 +50,12 @@ services:
   frontend:
     build: ./frontend
     env_file: .env
+    # Live-reload during dev: the source is bind-mounted so edits show up
+    # without an image rebuild. The anonymous volume keeps the image's
+    # Linux node_modules from being shadowed by the host directory.
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
     ports:
       - "${FRONTEND_PORT}:5173"
     depends_on:

@@ -15,5 +15,7 @@ export default defineConfig({
       },
     }),
   ],
-  server: { port: 5173 },
+  // usePolling: file-change events don't cross the Docker bind mount
+  // reliably on Windows/WSL2, so poll instead. Harmless outside Docker.
+  server: { port: 5173, watch: { usePolling: true } },
 })
