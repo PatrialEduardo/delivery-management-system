@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { api, ApiError, type Shipping } from '../../lib/api'
+import { ThemeToggle } from '../../components/ThemeToggle'
 import './driver.css'
 
 export function DriverShippingsPage() {
@@ -42,6 +43,7 @@ export function DriverShippingsPage() {
           }}
           aria-label="Date"
         />
+        <ThemeToggle />
         <button type="button" className="drv__logout" onClick={logout}>
           Log out
         </button>

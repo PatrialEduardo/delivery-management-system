@@ -88,6 +88,43 @@
   font-size: 0.8rem;
   color: var(--text-on-light);
 }
+
+.chip--btn {
+  font: inherit;
+  font-size: 0.8rem;
+  background: var(--panel-raised);
+  cursor: pointer;
+  transition:
+    border-color 0.12s ease,
+    opacity 0.12s ease;
+}
+.chip--btn:hover {
+  border-color: var(--muted-on-light);
+}
+.chip--btn.chip--on {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.chip--btn.chip--muted {
+  opacity: 0.45;
+}
+.chip--btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.chip--clear {
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--accent-press);
+  background: none;
+  border-color: transparent;
+  cursor: pointer;
+}
+.chip--clear:hover {
+  text-decoration: underline;
+}
 .chip__dot {
   width: 0.55rem;
   height: 0.55rem;
@@ -283,6 +320,13 @@
 .drow__handle:active {
   cursor: grabbing;
 }
+.drow__handle--off {
+  display: inline-block;
+  padding: 0.35rem 0.2rem;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--hairline-light);
+}
 
 .drow__order {
   width: 1.3rem;
@@ -325,7 +369,7 @@
   font-size: 0.85rem;
   padding: 0.6rem 1rem;
   border-radius: var(--radius);
-  box-shadow: 0 8px 24px rgba(20, 23, 28, 0.3);
+  box-shadow: var(--shadow-strong);
 }
 
 /* ---------------- responsive ---------------- */
@@ -360,7 +404,7 @@
     position: fixed;
     inset: 0;
     z-index: 35;
-    background: rgba(20, 23, 28, 0.5);
+    background: var(--scrim);
   }
 }
 

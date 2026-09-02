@@ -9,10 +9,12 @@ import {
   type Shipping,
   type StatusCount,
 } from '../lib/api'
+import { ThemeToggle } from '../components/ThemeToggle'
 import { ShippingSection } from '../components/ShippingSection'
 import { NewShippingModal } from '../components/NewShippingModal'
 import { AddDeliveryModal } from '../components/AddDeliveryModal'
 import { LinkDeliveryModal } from '../components/LinkDeliveryModal'
+import { toLocalISODate } from '../lib/date'
 import './HomePage.css'
 
 type ModalState =
@@ -24,7 +26,9 @@ type ModalState =
 export function HomePage() {
   const { user, logout } = useAuth()
 
-  const [date, setDate] = useState('') // '' → let the server pick "today"
+  // Default the board to the viewer's local day, not the server's clock
+  // (the API's "today" can drift from the user's — e.g. a container in UTC).
+  const [date, setDate] = useState(() => toLocalISODate())
   const [payload, setPayload] = useState<HomePayload | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -34,6 +38,8 @@ export function HomePage() {
   const [customers, setCustomers] = useState<Customer[]>([])
 
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set())
+  // Status ids to keep. Empty = show everything.
+  const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set())
   const [modal, setModal] = useState<ModalState>(null)
   const [menuOpen, setMenuOpen] = useState(false)
 
@@ -64,7 +70,7 @@ export function HomePage() {
     // synchronously, which the set-state-in-effect rule flags; that is the
     // intended behaviour for a first data fetch.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    load('')
+    load(toLocalISODate())
     api.drivers().then(setDrivers).catch(() => {})
     refreshCustomers()
   }, [load, refreshCustomers])
@@ -76,8 +82,10 @@ export function HomePage() {
   }, [toast])
 
   function changeDate(next: string) {
-    setDate(next)
-    load(next)
+    // The native date input can be cleared; fall back to the local day.
+    const d = next || toLocalISODate()
+    setDate(d)
+    load(d)
   }
 
   function toggle(id: number) {
@@ -158,6 +166,28 @@ export function HomePage() {
   const shippings = payload?.shippings ?? []
   const summary: StatusCount[] = payload?.statusSummary ?? []
 
+  const filterActive = statusFilter.size > 0
+  // When a status filter is on, keep only matching stops and drop shippings
+  // that end up with none. Reorder is disabled in this view (the API needs
+  // the full stop set to renumber).
+  const visibleShippings = filterActive
+    ? shippings
+        .map((s) => ({
+          ...s,
+          deliveries: s.deliveries.filter((d) => statusFilter.has(d.statusId)),
+        }))
+        .filter((s) => s.deliveries.length > 0)
+    : shippings
+
+  function toggleStatus(statusId: string) {
+    setStatusFilter((prev) => {
+      const n = new Set(prev)
+      if (n.has(statusId)) n.delete(statusId)
+      else n.add(statusId)
+      return n
+    })
+  }
+
   return (
     <div className="home">
       <header className="home__topbar">
@@ -179,20 +209,41 @@ export function HomePage() {
         />
         <span className="home__spacer" />
         {user && <span className="home__user">{user.fullName}</span>}
+        <ThemeToggle />
         <button type="button" className="btn home__logout" onClick={logout}>
           Log out
         </button>
       </header>
 
-      <div className="home__summary" role="list" aria-label="Status summary">
+      <div className="home__summary" aria-label="Filter by status">
         {summary.length === 0 && <span className="home__summary-empty">No deliveries.</span>}
-        {summary.map((s) => (
-          <span className="chip" role="listitem" key={s.statusId}>
-            <span className="chip__dot" style={{ background: s.colorHex }} />
-            <span className="chip__name">{s.name}</span>
-            <span className="chip__count">{s.count}</span>
-          </span>
-        ))}
+        {summary.map((s) => {
+          const on = statusFilter.has(s.statusId)
+          return (
+            <button
+              type="button"
+              className={`chip chip--btn${on ? ' chip--on' : ''}${
+                filterActive && !on ? ' chip--muted' : ''
+              }`}
+              key={s.statusId}
+              aria-pressed={on}
+              onClick={() => toggleStatus(s.statusId)}
+            >
+              <span className="chip__dot" style={{ background: s.colorHex }} />
+              <span className="chip__name">{s.name}</span>
+              <span className="chip__count">{s.count}</span>
+            </button>
+          )
+        })}
+        {filterActive && (
+          <button
+            type="button"
+            className="chip chip--clear"
+            onClick={() => setStatusFilter(new Set())}
+          >
+            Clear
+          </button>
+        )}
       </div>
 
       <div className="home__body">
@@ -236,13 +287,18 @@ export function HomePage() {
             </div>
           )}
 
+          {!loading && !error && shippings.length > 0 && visibleShippings.length === 0 && (
+            <p className="home__note">No stops match the selected status.</p>
+          )}
+
           {!loading &&
             !error &&
-            shippings.map((s) => (
+            visibleShippings.map((s) => (
               <ShippingSection
                 key={s.id}
                 shipping={s}
                 collapsed={collapsed.has(s.id)}
+                disableReorder={filterActive}
                 onToggle={() => toggle(s.id)}
                 onReorder={reorder}
                 onAddDelivery={(shippingId) => setModal({ kind: 'addDelivery', shippingId })}

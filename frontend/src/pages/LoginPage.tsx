@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { ThemeToggle } from '../components/ThemeToggle'
 import './LoginPage.css'
 
 export function LoginPage() {
@@ -20,6 +21,7 @@ export function LoginPage() {
 
   return (
     <div className="login">
+      <ThemeToggle className="theme-toggle--floating" />
       <section className="login__brand">
         <div className="login__brand-inner">
           <span className="login__mark">DMS</span>

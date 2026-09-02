@@ -1,5 +1,19 @@
+/*
+ * Palette tokens.
+ *
+ * The token *names* date back to the first (light-only) login design —
+ * `--text-on-light` etc. read as "text that sits on a light panel". With
+ * the theme switcher they're really just semantic slots: in dark mode the
+ * same slot holds a light-coloured value. Renaming every usage site was
+ * not worth the churn, so the names stay and only the values swap.
+ *
+ * Light is the base (`:root`). Dark is applied two ways:
+ *   - the OS preference, unless the user has explicitly chosen "light"
+ *   - an explicit `data-theme="dark"` on <html> (wins in both directions)
+ * ThemeContext writes `data-theme` on <html>; with no attribute the OS
+ * preference decides.
+ */
 :root {
-  /* Palette — carried over from the first login design. */
   --bg-deep: #14171c;
   --bg-deep-2: #1b1f27;
   --panel: #f1efe9;
@@ -7,6 +21,7 @@
   --accent: #ff6b35;
   --accent-hover: #ff7d4d;
   --accent-press: #e85c28;
+  --accent-contrast: #14171c;
   --text-on-dark: #f1efe9;
   --text-on-light: #14171c;
   --muted-on-dark: #8b93a1;
@@ -14,6 +29,10 @@
   --hairline-dark: #2a2f38;
   --hairline-light: #d9d5cb;
   --danger: #c0392b;
+  --danger-surface: rgba(192, 57, 43, 0.1);
+  --danger-border: rgba(192, 57, 43, 0.35);
+  --scrim: rgba(20, 23, 28, 0.5);
+  --shadow-strong: 0 8px 24px rgba(20, 23, 28, 0.3);
 
   --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial,
     sans-serif;
@@ -25,6 +44,57 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+}
+
+/* Dark values. Keep this list in sync with the light block above. */
+:root[data-theme='dark'] {
+  --bg-deep: #0d0f13;
+  --bg-deep-2: #14171c;
+  --panel: #14171c;
+  --panel-raised: #1b1f27;
+  --accent: #ff6b35;
+  --accent-hover: #ff7d4d;
+  --accent-press: #ff8a5c;
+  --accent-contrast: #14171c;
+  --text-on-dark: #f1efe9;
+  --text-on-light: #e8e6e0;
+  --muted-on-dark: #8b93a1;
+  --muted-on-light: #9aa2b1;
+  --hairline-dark: #2a2f38;
+  --hairline-light: #2c313b;
+  --danger: #ef6a5c;
+  --danger-surface: rgba(239, 106, 92, 0.12);
+  --danger-border: rgba(239, 106, 92, 0.4);
+  --scrim: rgba(0, 0, 0, 0.6);
+  --shadow-strong: 0 8px 24px rgba(0, 0, 0, 0.55);
+
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg-deep: #0d0f13;
+    --bg-deep-2: #14171c;
+    --panel: #14171c;
+    --panel-raised: #1b1f27;
+    --accent: #ff6b35;
+    --accent-hover: #ff7d4d;
+    --accent-press: #ff8a5c;
+    --accent-contrast: #14171c;
+    --text-on-dark: #f1efe9;
+    --text-on-light: #e8e6e0;
+    --muted-on-dark: #8b93a1;
+    --muted-on-light: #9aa2b1;
+    --hairline-dark: #2a2f38;
+    --hairline-light: #2c313b;
+    --danger: #ef6a5c;
+    --danger-surface: rgba(239, 106, 92, 0.12);
+    --danger-border: rgba(239, 106, 92, 0.4);
+    --scrim: rgba(0, 0, 0, 0.6);
+    --shadow-strong: 0 8px 24px rgba(0, 0, 0, 0.55);
+
+    color-scheme: dark;
+  }
 }
 
 *,

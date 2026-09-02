@@ -13,7 +13,7 @@
 .modal__backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(20, 23, 28, 0.55);
+  background: var(--scrim);
 }
 
 .modal__card {
@@ -131,8 +131,8 @@
 }
 
 .form-error {
-  background: rgba(192, 57, 43, 0.1);
-  border: 1px solid rgba(192, 57, 43, 0.35);
+  background: var(--danger-surface);
+  border: 1px solid var(--danger-border);
   color: var(--danger);
   font-size: 0.85rem;
   border-radius: var(--radius);

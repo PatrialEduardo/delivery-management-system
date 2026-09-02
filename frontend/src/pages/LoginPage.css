@@ -82,8 +82,8 @@
 }
 
 .login__error {
-  background: rgba(192, 57, 43, 0.1);
-  border: 1px solid rgba(192, 57, 43, 0.35);
+  background: var(--danger-surface);
+  border: 1px solid var(--danger-border);
   color: var(--danger);
   font-size: 0.88rem;
   line-height: 1.45;

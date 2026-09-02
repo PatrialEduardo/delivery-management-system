@@ -82,8 +82,8 @@
   font-size: 0.9rem;
 }
 .drv__error {
-  background: rgba(192, 57, 43, 0.1);
-  border: 1px solid rgba(192, 57, 43, 0.35);
+  background: var(--danger-surface);
+  border: 1px solid var(--danger-border);
   color: var(--danger);
   font-size: 0.86rem;
   border-radius: var(--radius);

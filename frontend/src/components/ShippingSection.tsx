@@ -21,6 +21,8 @@ import { DeliveryRow } from './DeliveryRow'
 interface Props {
   shipping: Shipping
   collapsed: boolean
+  /** hide drag-to-reorder (e.g. while a status filter is showing a partial stop list). */
+  disableReorder?: boolean
   onToggle: () => void
   onReorder: (shippingId: number, deliveryIds: number[]) => void
   onAddDelivery: (shippingId: number) => void
@@ -30,6 +32,7 @@ interface Props {
 export function ShippingSection({
   shipping,
   collapsed,
+  disableReorder = false,
   onToggle,
   onReorder,
   onAddDelivery,
@@ -93,7 +96,7 @@ export function ShippingSection({
               <SortableContext items={ids} strategy={verticalListSortingStrategy}>
                 <ul className="shipping__list">
                   {shipping.deliveries.map((d, i) => (
-                    <DeliveryRow key={d.id} delivery={d} index={i} />
+                    <DeliveryRow key={d.id} delivery={d} index={i} disabled={disableReorder} />
                   ))}
                 </ul>
               </SortableContext>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError, type Shipping } from '../../lib/api'
+import { ThemeToggle } from '../../components/ThemeToggle'
 import './driver.css'
 
 export function DriverShippingPage() {
@@ -44,7 +45,7 @@ export function DriverShippingPage() {
           ‹ Shippings
         </button>
         <span className="drv__title">{current?.batchCode ?? '…'}</span>
-        <span className="drv__bar-spacer" />
+        <ThemeToggle />
       </header>
 
       <main className="drv__main">

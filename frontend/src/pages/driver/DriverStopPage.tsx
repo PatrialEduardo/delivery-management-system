@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError, type Shipping } from '../../lib/api'
 import { directionsUrl, getPositionBestEffort, telUrl, whatsappUrl } from '../../lib/geo'
+import { ThemeToggle } from '../../components/ThemeToggle'
 import './driver.css'
 
 type Outcome = 'COMPLETE' | 'ABSENT' | 'TROUBLE'
@@ -84,7 +85,7 @@ export function DriverStopPage() {
         <span className="drv__title">
           {idx >= 0 ? `Stop ${idx + 1} of ${stops.length}` : ''}
         </span>
-        <span className="drv__bar-spacer" />
+        <ThemeToggle />
       </header>
 
       <main className="drv__main drv__main--stop">
