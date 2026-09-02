@@ -187,7 +187,12 @@ func (r *Repository) shippingsForDay(ctx context.Context, companyID, driverID, d
 
 	out := make([]Shipping, 0, len(order))
 	for _, id := range order {
-		out = append(out, *byID[id])
+		s := *byID[id]
+		if err := r.attachLines(ctx, companyID, s.Deliveries); err != nil {
+			return nil, err
+		}
+		rollUpShipping(&s)
+		out = append(out, s)
 	}
 	return out, nil
 }
@@ -420,6 +425,9 @@ func (r *Repository) deliveryByID(ctx context.Context, companyID string, id int6
 	if err != nil {
 		return nil, err
 	}
+	if err := r.attachLinesOne(ctx, companyID, &d); err != nil {
+		return nil, err
+	}
 	return &d, nil
 }
 
@@ -639,7 +647,13 @@ func (r *Repository) Reorder(ctx context.Context, companyID string, shippingID i
 		}
 		out = append(out, d)
 	}
-	return out, drows.Err()
+	if err := drows.Err(); err != nil {
+		return nil, err
+	}
+	if err := r.attachLines(ctx, companyID, out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (h *Handler) reorderDeliveries(w http.ResponseWriter, r *http.Request) {

@@ -1,15 +1,18 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { Delivery } from '../lib/api'
+import { money } from '../lib/money'
 
 export function DeliveryRow({
   delivery,
   index,
   disabled = false,
+  onOpen,
 }: {
   delivery: Delivery
   index: number
   disabled?: boolean
+  onOpen?: () => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: delivery.id,
@@ -40,10 +43,22 @@ export function DeliveryRow({
         </button>
       )}
       <span className="drow__order">{index + 1}</span>
-      <span className="drow__body">
+      <button
+        type="button"
+        className="drow__body drow__body--btn"
+        onClick={onOpen}
+        title="Edit line items"
+      >
         <span className="drow__name">{delivery.customerName}</span>
         <span className="drow__addr">{delivery.addressLine}</span>
-      </span>
+        <span className="drow__items">
+          {delivery.itemCount > 0
+            ? `${delivery.itemCount} item${delivery.itemCount === 1 ? '' : 's'} · ${money(
+                delivery.itemTotal,
+              )}`
+            : '+ add items'}
+        </span>
+      </button>
       <span className="status-badge" style={{ ['--c' as string]: delivery.statusColor }}>
         {delivery.statusName}
       </span>

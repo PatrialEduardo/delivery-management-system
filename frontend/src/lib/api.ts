@@ -99,6 +99,24 @@ export interface Customer {
   addresses: Address[]
 }
 
+export interface DeliveryLine {
+  id: number
+  productId: string
+  productName: string
+  sku: string | null
+  unit: string | null
+  quantity: number
+  unitPrice: number | null
+  notes: string | null
+}
+
+export interface LineInput {
+  productId: string
+  quantity: number
+  unitPrice?: number | null
+  notes?: string | null
+}
+
 export interface Delivery {
   id: number
   order: number
@@ -117,6 +135,9 @@ export interface Delivery {
   notes: string | null
   startedAt: string | null
   finishedAt: string | null
+  products: DeliveryLine[]
+  itemCount: number
+  itemTotal: number
 }
 
 export interface Shipping {
@@ -127,6 +148,14 @@ export interface Shipping {
   driverName: string
   notes: string | null
   deliveries: Delivery[]
+  itemCount: number
+  itemTotal: number
+}
+
+export interface LinesResponse {
+  lines: DeliveryLine[]
+  itemCount: number
+  itemTotal: number
 }
 
 export interface StatusCount {
@@ -232,6 +261,14 @@ export const api = {
     request<{ deliveries: Delivery[] }>(`/shippings/${shippingId}/deliveries/order`, {
       method: 'PATCH',
       body: JSON.stringify({ deliveryIds }),
+    }),
+
+  deliveryProducts: (deliveryId: number) =>
+    request<LinesResponse>(`/deliveries/${deliveryId}/products`),
+  setDeliveryProducts: (deliveryId: number, lines: LineInput[]) =>
+    request<LinesResponse>(`/deliveries/${deliveryId}/products`, {
+      method: 'PUT',
+      body: JSON.stringify({ lines }),
     }),
 
   // ---- driver ----

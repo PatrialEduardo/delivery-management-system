@@ -86,6 +86,37 @@ type Delivery struct {
 	Notes         *string  `json:"notes"`
 	StartedAt     *string  `json:"startedAt"`  // RFC3339, nil until started
 	FinishedAt    *string  `json:"finishedAt"` // RFC3339, nil until finished
+
+	// Line items. Always present (possibly empty). ItemCount is the number
+	// of line rows; ItemTotal is sum(quantity * unitPrice) over priced lines.
+	Products  []DeliveryLine `json:"products"`
+	ItemCount int            `json:"itemCount"`
+	ItemTotal float64        `json:"itemTotal"`
+}
+
+// DeliveryLine is one product row on a delivery. UnitPrice is captured when
+// the line is written, not read live from the catalogue.
+type DeliveryLine struct {
+	ID          int64    `json:"id"`
+	ProductID   string   `json:"productId"`
+	ProductName string   `json:"productName"`
+	SKU         *string  `json:"sku"`
+	Unit        *string  `json:"unit"`
+	Quantity    float64  `json:"quantity"`
+	UnitPrice   *float64 `json:"unitPrice"`
+	Notes       *string  `json:"notes"`
+}
+
+type lineInput struct {
+	ProductID string   `json:"productId"`
+	Quantity  float64  `json:"quantity"`
+	UnitPrice *float64 `json:"unitPrice"`
+	Notes     *string  `json:"notes"`
+}
+
+// setLinesReq is a full replace of a delivery's line items.
+type setLinesReq struct {
+	Lines []lineInput `json:"lines"`
 }
 
 // ActiveDelivery points a driver back to the stop they left in progress.
@@ -116,6 +147,10 @@ type Shipping struct {
 	DriverName   string     `json:"driverName"`
 	Notes        *string    `json:"notes"`
 	Deliveries   []Delivery `json:"deliveries"`
+
+	// Roll-up across this shipping's deliveries.
+	ItemCount int     `json:"itemCount"`
+	ItemTotal float64 `json:"itemTotal"`
 }
 
 type StatusCount struct {

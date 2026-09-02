@@ -55,6 +55,8 @@ func (h *Handler) Register(r chi.Router) {
 	r.Patch("/shippings/{shippingID}/deliveries/order", h.reorderDeliveries)
 
 	r.Get("/deliveries", h.listLinkableDeliveries)
+	r.Get("/deliveries/{deliveryID}/products", h.getDeliveryLines)
+	r.Put("/deliveries/{deliveryID}/products", h.putDeliveryLines)
 
 	// Driver-facing: scoped to the shippings assigned to the caller.
 	r.Get("/me/shippings", h.myShippings)

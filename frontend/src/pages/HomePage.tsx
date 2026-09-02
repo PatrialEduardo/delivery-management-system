@@ -5,6 +5,7 @@ import {
   api,
   ApiError,
   type Customer,
+  type Delivery,
   type Driver,
   type HomePayload,
   type Shipping,
@@ -15,6 +16,7 @@ import { ShippingSection } from '../components/ShippingSection'
 import { NewShippingModal } from '../components/NewShippingModal'
 import { AddDeliveryModal } from '../components/AddDeliveryModal'
 import { LinkDeliveryModal } from '../components/LinkDeliveryModal'
+import { DeliveryProductsModal } from '../components/DeliveryProductsModal'
 import { toLocalISODate } from '../lib/date'
 import './HomePage.css'
 
@@ -23,6 +25,7 @@ type ModalState =
   | { kind: 'newShipping' }
   | { kind: 'addDelivery'; shippingId?: number }
   | { kind: 'link'; shipping: Shipping }
+  | { kind: 'deliveryProducts'; delivery: Delivery; shippingCode: string }
 
 export function HomePage() {
   const { user, logout } = useAuth()
@@ -311,6 +314,9 @@ export function HomePage() {
                 onToggle={() => toggle(s.id)}
                 onReorder={reorder}
                 onAddDelivery={(shippingId) => setModal({ kind: 'addDelivery', shippingId })}
+                onOpenDelivery={(delivery) =>
+                  setModal({ kind: 'deliveryProducts', delivery, shippingCode: s.batchCode })
+                }
                 onLink={(shipping) => setModal({ kind: 'link', shipping })}
               />
             ))}
@@ -345,6 +351,15 @@ export function HomePage() {
           date={date}
           onClose={() => setModal(null)}
           onLinked={handleLinked}
+        />
+      )}
+
+      {modal?.kind === 'deliveryProducts' && (
+        <DeliveryProductsModal
+          delivery={modal.delivery}
+          shippingCode={modal.shippingCode}
+          onClose={() => setModal(null)}
+          onSaved={() => load(date)}
         />
       )}
     </div>

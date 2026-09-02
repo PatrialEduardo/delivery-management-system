@@ -94,7 +94,14 @@ func (r *Repository) DriverShipping(ctx context.Context, companyID, driverID str
 		}
 		s.Deliveries = append(s.Deliveries, d)
 	}
-	return &s, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := r.attachLines(ctx, companyID, s.Deliveries); err != nil {
+		return nil, err
+	}
+	rollUpShipping(&s)
+	return &s, nil
 }
 
 func (h *Handler) myShipping(w http.ResponseWriter, r *http.Request) {

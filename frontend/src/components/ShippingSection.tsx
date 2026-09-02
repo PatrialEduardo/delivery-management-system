@@ -15,7 +15,8 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import type { Shipping } from '../lib/api'
+import type { Delivery, Shipping } from '../lib/api'
+import { money } from '../lib/money'
 import { DeliveryRow } from './DeliveryRow'
 
 interface Props {
@@ -26,6 +27,7 @@ interface Props {
   onToggle: () => void
   onReorder: (shippingId: number, deliveryIds: number[]) => void
   onAddDelivery: (shippingId: number) => void
+  onOpenDelivery: (delivery: Delivery) => void
   onLink: (shipping: Shipping) => void
 }
 
@@ -36,6 +38,7 @@ export function ShippingSection({
   onToggle,
   onReorder,
   onAddDelivery,
+  onOpenDelivery,
   onLink,
 }: Props) {
   // Press-and-hold (delay) turns a touch/click into a drag, so a plain
@@ -73,6 +76,13 @@ export function ShippingSection({
           <span className="shipping__code">{shipping.batchCode}</span>
           <span className="shipping__meta">
             {shipping.driverName} · {count} stop{count === 1 ? '' : 's'}
+            {shipping.itemCount > 0 && (
+              <>
+                {' · '}
+                {shipping.itemCount} item{shipping.itemCount === 1 ? '' : 's'} ·{' '}
+                {money(shipping.itemTotal)}
+              </>
+            )}
           </span>
         </button>
         <button type="button" className="btn--link" onClick={() => onLink(shipping)}>
@@ -96,7 +106,13 @@ export function ShippingSection({
               <SortableContext items={ids} strategy={verticalListSortingStrategy}>
                 <ul className="shipping__list">
                   {shipping.deliveries.map((d, i) => (
-                    <DeliveryRow key={d.id} delivery={d} index={i} disabled={disableReorder} />
+                    <DeliveryRow
+                      key={d.id}
+                      delivery={d}
+                      index={i}
+                      disabled={disableReorder}
+                      onOpen={() => onOpenDelivery(d)}
+                    />
                   ))}
                 </ul>
               </SortableContext>

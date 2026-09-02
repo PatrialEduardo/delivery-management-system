@@ -346,6 +346,31 @@
   flex-direction: column;
   min-width: 0;
 }
+.drow__body--btn {
+  border: none;
+  background: none;
+  text-align: left;
+  padding: 0.15rem 0.25rem;
+  margin: -0.15rem -0.25rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font: inherit;
+}
+.drow__body--btn:hover {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.drow__body--btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.drow__items {
+  font-size: 0.74rem;
+  color: var(--muted-on-light);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .drow__name {
   font-size: 0.9rem;
   font-weight: 500;
