@@ -16,6 +16,7 @@ import (
 var (
 	errForbidden       = errors.New("not your shipping")
 	errAlreadyFinished = errors.New("this delivery is already finished")
+	errActiveElsewhere = errors.New("finish your current delivery before starting another")
 	errBadOutcome      = errors.New("outcome must be COMPLETE, ABSENT or TROUBLE")
 	errTroubleNote     = errors.New("a trouble needs a description of at least 15 characters")
 )
@@ -160,27 +161,46 @@ func (h *Handler) myActiveDelivery(w http.ResponseWriter, r *http.Request) {
 // guard: does this delivery belong to a shipping assigned to the driver?
 // ---------------------------------------------------------------------
 
-func (r *Repository) assertDeliveryDriver(ctx context.Context, companyID, driverID string, deliveryID int64) (finished bool, err error) {
+func (r *Repository) assertDeliveryDriver(ctx context.Context, companyID, driverID string, deliveryID int64) (started, finished bool, err error) {
 	var (
 		batchDriver string
+		startedAt   *time.Time
 		finishedAt  *time.Time
 	)
 	err = r.db.QueryRow(ctx, `
-		SELECT b.driver_user_id, d.finished_at
+		SELECT b.driver_user_id, d.started_at, d.finished_at
 		FROM delivery d
 		JOIN delivery_batch b ON b.delivery_batch_id = d.delivery_batch_id
 		WHERE d.delivery_id = $1 AND d.company_id = $2`, deliveryID, companyID,
-	).Scan(&batchDriver, &finishedAt)
+	).Scan(&batchDriver, &startedAt, &finishedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return false, errNotFound
+		return false, false, errNotFound
 	}
 	if err != nil {
-		return false, err
+		return false, false, err
 	}
 	if batchDriver != driverID {
-		return false, errForbidden
+		return false, false, errForbidden
 	}
-	return finishedAt != nil, nil
+	return startedAt != nil, finishedAt != nil, nil
+}
+
+// hasOtherActiveDelivery reports whether the driver already has a delivery
+// that is started but not finished, other than the one given. A driver runs
+// one stop at a time, so starting a second is rejected until the first is
+// closed.
+func (r *Repository) hasOtherActiveDelivery(ctx context.Context, companyID, driverID string, exceptDeliveryID int64) (bool, error) {
+	var exists bool
+	err := r.db.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM delivery d
+			JOIN delivery_batch b ON b.delivery_batch_id = d.delivery_batch_id
+			WHERE d.company_id = $1 AND b.driver_user_id = $2
+			  AND d.delivery_id <> $3
+			  AND d.started_at IS NOT NULL AND d.finished_at IS NULL
+		)`, companyID, driverID, exceptDeliveryID).Scan(&exists)
+	return exists, err
 }
 
 // ---------------------------------------------------------------------
@@ -188,12 +208,25 @@ func (r *Repository) assertDeliveryDriver(ctx context.Context, companyID, driver
 // ---------------------------------------------------------------------
 
 func (r *Repository) StartDelivery(ctx context.Context, companyID, driverID string, deliveryID int64, geo geoBody) (*Delivery, error) {
-	finished, err := r.assertDeliveryDriver(ctx, companyID, driverID, deliveryID)
+	started, finished, err := r.assertDeliveryDriver(ctx, companyID, driverID, deliveryID)
 	if err != nil {
 		return nil, err
 	}
 	if finished {
 		return nil, errAlreadyFinished
+	}
+	// Re-tapping Start on the stop already in progress is a no-op — return
+	// its current state without logging another "Started" event.
+	if started {
+		return r.deliveryByID(ctx, companyID, deliveryID)
+	}
+	// One stop at a time: block starting a second while another is open.
+	busyElsewhere, err := r.hasOtherActiveDelivery(ctx, companyID, driverID, deliveryID)
+	if err != nil {
+		return nil, err
+	}
+	if busyElsewhere {
+		return nil, errActiveElsewhere
 	}
 
 	tx, err := r.db.Begin(ctx)
@@ -242,6 +275,8 @@ func (h *Handler) startDelivery(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusForbidden, "that delivery isn't on one of your shippings")
 	case errors.Is(err, errAlreadyFinished):
 		httpx.WriteError(w, http.StatusConflict, "that delivery is already finished")
+	case errors.Is(err, errActiveElsewhere):
+		httpx.WriteError(w, http.StatusConflict, errActiveElsewhere.Error())
 	case err != nil:
 		httpx.WriteError(w, http.StatusInternalServerError, "could not start the delivery")
 	default:
@@ -272,7 +307,7 @@ func (r *Repository) FinishDelivery(ctx context.Context, companyID, driverID str
 		}
 	}
 
-	finished, err := r.assertDeliveryDriver(ctx, companyID, driverID, deliveryID)
+	_, finished, err := r.assertDeliveryDriver(ctx, companyID, driverID, deliveryID)
 	if err != nil {
 		return nil, err
 	}

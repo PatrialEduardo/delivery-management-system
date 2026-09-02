@@ -17,6 +17,10 @@ export function DriverStopPage() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [opErr, setOpErr] = useState<string | null>(null)
+  const [activeElsewhere, setActiveElsewhere] = useState<{
+    shippingId: number
+    deliveryId: number
+  } | null>(null)
   const [troubleOpen, setTroubleOpen] = useState(false)
   const [troubleNote, setTroubleNote] = useState('')
 
@@ -43,14 +47,25 @@ export function DriverStopPage() {
   const next = idx >= 0 && idx < stops.length - 1 ? stops[idx + 1] : null
 
   async function start() {
+    if (busy) return
     setBusy(true)
     setOpErr(null)
+    setActiveElsewhere(null)
     try {
       const geo = await getPositionBestEffort()
       await api.startDelivery(did, geo)
       await load()
     } catch (e) {
       setOpErr(e instanceof ApiError ? e.message : 'Could not start the delivery.')
+      // 409 = another stop is still open. Point the driver at it.
+      if (e instanceof ApiError && e.status === 409) {
+        api
+          .activeDelivery()
+          .then((a) => {
+            if (a && a.deliveryId !== did) setActiveElsewhere(a)
+          })
+          .catch(() => {})
+      }
     } finally {
       setBusy(false)
     }
@@ -138,6 +153,19 @@ export function DriverStopPage() {
             ) : (
               <div className="drv-stop__ops">
                 {opErr && <p className="drv__error">{opErr}</p>}
+                {activeElsewhere && (
+                  <button
+                    type="button"
+                    className="drv-btn drv-btn--primary"
+                    onClick={() =>
+                      navigate(
+                        `/d/shipping/${activeElsewhere.shippingId}/stop/${activeElsewhere.deliveryId}`,
+                      )
+                    }
+                  >
+                    Open the stop in progress
+                  </button>
+                )}
 
                 {!stop.startedAt ? (
                   <button
