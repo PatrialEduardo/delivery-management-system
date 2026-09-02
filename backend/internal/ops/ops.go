@@ -43,6 +43,11 @@ func (h *Handler) Register(r chi.Router) {
 	r.Post("/customers", h.createCustomer)
 	r.Post("/customers/{customerID}/addresses", h.addAddress)
 
+	r.Get("/products", h.listProducts)
+	r.Post("/products", h.createProduct)
+	r.Patch("/products/{productID}", h.updateProduct)
+	r.Delete("/products/{productID}", h.deleteProduct)
+
 	r.Get("/shippings", h.listShippings)
 	r.Post("/shippings", h.createShipping)
 	r.Post("/shippings/{shippingID}/deliveries", h.quickAddDelivery)

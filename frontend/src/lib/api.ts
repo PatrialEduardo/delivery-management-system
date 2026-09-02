@@ -63,6 +63,23 @@ export interface Driver {
   email: string
 }
 
+export interface Product {
+  id: string
+  name: string
+  sku: string | null
+  unit: string | null
+  price: number | null
+  isActive: boolean
+}
+
+export interface ProductInput {
+  name: string
+  sku?: string | null
+  unit?: string | null
+  price?: number | null
+  isActive?: boolean
+}
+
 export interface Address {
   id: string
   zipCode: string | null
@@ -167,6 +184,15 @@ export const api = {
 
   deliveryStatuses: () => request<DeliveryStatus[]>('/delivery-statuses'),
   drivers: () => request<Driver[]>('/drivers'),
+
+  products: (includeInactive = false) =>
+    request<Product[]>(`/products${includeInactive ? '?all=1' : ''}`),
+  createProduct: (body: ProductInput) =>
+    request<Product>('/products', { method: 'POST', body: JSON.stringify(body) }),
+  updateProduct: (id: string, body: ProductInput) =>
+    request<Product>(`/products/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteProduct: (id: string) =>
+    request<null>(`/products/${id}`, { method: 'DELETE' }),
 
   customers: (q?: string) => request<Customer[]>(`/customers${qs({ q })}`),
   createCustomer: (body: {

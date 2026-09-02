@@ -161,6 +161,11 @@
   justify-content: center;
   text-align: center;
 }
+.home__action--nav {
+  margin-top: 0.25rem;
+  border-top: 1px solid var(--hairline-light);
+  border-radius: var(--radius);
+}
 
 .home__scrim {
   display: none;

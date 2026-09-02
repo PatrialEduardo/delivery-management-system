@@ -21,6 +21,33 @@ type Driver struct {
 	Email    string `json:"email"`
 }
 
+// Product is a catalogue item that can be added as a line on a delivery.
+type Product struct {
+	ID       string   `json:"id"`
+	Name     string   `json:"name"`
+	SKU      *string  `json:"sku"`
+	Unit     *string  `json:"unit"`
+	Price    *float64 `json:"price"`
+	IsActive bool     `json:"isActive"`
+}
+
+type createProductReq struct {
+	Name  string   `json:"name"`
+	SKU   *string  `json:"sku"`
+	Unit  *string  `json:"unit"`
+	Price *float64 `json:"price"`
+}
+
+// updateProductReq is a full replace of the editable fields — the product
+// form always sends every field.
+type updateProductReq struct {
+	Name     string   `json:"name"`
+	SKU      *string  `json:"sku"`
+	Unit     *string  `json:"unit"`
+	Price    *float64 `json:"price"`
+	IsActive bool     `json:"isActive"`
+}
+
 type Address struct {
 	ID         string  `json:"id"`
 	ZipCode    *string `json:"zipCode"`

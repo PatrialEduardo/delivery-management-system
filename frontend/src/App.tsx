@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import { api } from './lib/api'
 import { LoginPage } from './pages/LoginPage'
 import { HomePage } from './pages/HomePage'
+import { ProductsPage } from './pages/ProductsPage'
 import { DriverShippingsPage } from './pages/driver/DriverShippingsPage'
 import { DriverShippingPage } from './pages/driver/DriverShippingPage'
 import { DriverStopPage } from './pages/driver/DriverStopPage'
@@ -47,6 +48,7 @@ function AuthedApp() {
   return (
     <Routes>
       <Route path="/" element={<HomePage />} />
+      <Route path="/products" element={<ProductsPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import {
   api,
@@ -25,6 +26,7 @@ type ModalState =
 
 export function HomePage() {
   const { user, logout } = useAuth()
+  const navigate = useNavigate()
 
   // Default the board to the viewer's local day, not the server's clock
   // (the API's "today" can drift from the user's — e.g. a container in UTC).
@@ -268,6 +270,13 @@ export function HomePage() {
             }}
           >
             + New delivery
+          </button>
+          <button
+            type="button"
+            className="btn home__action home__action--nav"
+            onClick={() => navigate('/products')}
+          >
+            Products
           </button>
         </aside>
 
