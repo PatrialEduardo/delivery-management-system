@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ApiError, type Customer, type Shipping } from '../lib/api'
+import { useT } from '../context/LanguageContext'
 import { Modal } from './Modal'
 import { CustomerAddressField, type CustomerAddressValue } from './CustomerAddressField'
 
@@ -23,6 +24,7 @@ export function AddDeliveryModal({
   onClose,
   onAdd,
 }: Props) {
+  const t = useT()
   const [shippingId, setShippingId] = useState<number | ''>(fixedShippingId ?? '')
   const [ca, setCa] = useState<CustomerAddressValue>({ customerId: '', addressId: '' })
   const [notes, setNotes] = useState('')
@@ -43,19 +45,19 @@ export function AddDeliveryModal({
         notes: notes.trim() || null,
       })
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : 'Could not add the delivery.')
+      setErr(e instanceof ApiError ? e.message : t.addDelivery.errAdd)
       setBusy(false)
     }
   }
 
   return (
     <Modal
-      title="New delivery"
+      title={t.addDelivery.title}
       onClose={onClose}
       footer={
         <>
           <button type="button" className="btn" onClick={onClose}>
-            Cancel
+            {t.common.cancel}
           </button>
           <button
             type="button"
@@ -63,7 +65,7 @@ export function AddDeliveryModal({
             onClick={submit}
             disabled={busy || !canSubmit}
           >
-            {busy ? 'Adding…' : 'Add delivery'}
+            {busy ? t.common.adding : t.addDelivery.add}
           </button>
         </>
       }
@@ -72,19 +74,19 @@ export function AddDeliveryModal({
 
       {fixed ? (
         <p className="add-delivery__target">
-          Adding to <strong>{fixed.batchCode}</strong> · {fixed.driverName}
+          {t.addDelivery.addingTo(fixed.batchCode, fixed.driverName)}
         </p>
       ) : shippings.length === 0 ? (
-        <p className="form-error">Create a shipping for this day first.</p>
+        <p className="form-error">{t.addDelivery.createFirst}</p>
       ) : (
         <div className="field">
-          <label htmlFor="ad-shipping">Shipping</label>
+          <label htmlFor="ad-shipping">{t.addDelivery.shipping}</label>
           <select
             id="ad-shipping"
             value={shippingId}
             onChange={(e) => setShippingId(e.target.value ? Number(e.target.value) : '')}
           >
-            <option value="">Select a shipping…</option>
+            <option value="">{t.addDelivery.selectShipping}</option>
             {shippings.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.batchCode} · {s.driverName}
@@ -102,12 +104,12 @@ export function AddDeliveryModal({
       />
 
       <div className="field">
-        <label htmlFor="ad-notes">Notes</label>
+        <label htmlFor="ad-notes">{t.addDelivery.notes}</label>
         <textarea
           id="ad-notes"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder="Optional"
+          placeholder={t.addDelivery.notesPlaceholder}
         />
       </div>
     </Modal>

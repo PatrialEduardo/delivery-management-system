@@ -20,6 +20,12 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     },
   })
 
+  // Sliding session: the API hands back a freshly-minted token on every
+  // authenticated response. Swap it in so 30 min of *inactivity* — not
+  // 30 min since login — is what logs the user out.
+  const rolled = res.headers.get('X-Access-Token')
+  if (rolled) localStorage.setItem('dms_access_token', rolled)
+
   const data = await res.json().catch(() => null)
 
   if (!res.ok) {
@@ -70,6 +76,8 @@ export interface Product {
   unit: string | null
   price: number | null
   isActive: boolean
+  /** true once the product is on a delivery line — name/SKU/unit freeze, delete becomes deactivate. */
+  hasActivity: boolean
 }
 
 export interface ProductInput {
@@ -92,11 +100,36 @@ export interface Address {
   line: string
 }
 
+export interface CustomerStats {
+  total: number
+  delivered: number
+  failed: number
+  absent: number
+  inProgress: number
+  pending: number
+  successRate: number
+  lastDeliveryDate: string | null
+  deliveredValue: number
+}
+
 export interface Customer {
   id: string
   fullName: string
   phone: string | null
+  notes: string | null
+  isActive: boolean
   addresses: Address[]
+  /** true once the customer has any delivery — name freezes, delete becomes deactivate. */
+  hasActivity: boolean
+  /** only present when the list was requested with { stats: true }. */
+  stats: CustomerStats | null
+}
+
+export interface CustomerInput {
+  fullName: string
+  phone?: string | null
+  notes?: string | null
+  isActive?: boolean
 }
 
 export interface DeliveryLine {
@@ -168,6 +201,8 @@ export interface StatusCount {
 
 export interface HomePayload {
   date: string
+  from: string
+  to: string
   shippings: Shipping[]
   statusSummary: StatusCount[]
 }
@@ -223,19 +258,39 @@ export const api = {
   deleteProduct: (id: string) =>
     request<null>(`/products/${id}`, { method: 'DELETE' }),
 
-  customers: (q?: string) => request<Customer[]>(`/customers${qs({ q })}`),
+  customers: (q?: string, opts?: { all?: boolean; stats?: boolean }) =>
+    request<Customer[]>(
+      `/customers${qs({
+        q,
+        all: opts?.all ? 1 : undefined,
+        stats: opts?.stats ? 1 : undefined,
+      })}`,
+    ),
   createCustomer: (body: {
     fullName: string
     phone?: string | null
+    notes?: string | null
     address?: AddressInput
   }) => request<Customer>('/customers', { method: 'POST', body: JSON.stringify(body) }),
+  updateCustomer: (id: string, body: CustomerInput) =>
+    request<Customer>(`/customers/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteCustomer: (id: string) =>
+    request<null>(`/customers/${id}`, { method: 'DELETE' }),
   addAddress: (customerId: string, body: AddressInput) =>
     request<Address>(`/customers/${customerId}/addresses`, {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+  updateAddress: (customerId: string, addressId: string, body: AddressInput) =>
+    request<Address>(`/customers/${customerId}/addresses/${addressId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  deleteAddress: (customerId: string, addressId: string) =>
+    request<null>(`/customers/${customerId}/addresses/${addressId}`, { method: 'DELETE' }),
 
-  shippings: (date: string) => request<HomePayload>(`/shippings${qs({ date })}`),
+  shippings: (from: string, to: string) =>
+    request<HomePayload>(`/shippings${qs({ from, to })}`),
   createShipping: (body: {
     driverUserId: string
     deliveryDate: string

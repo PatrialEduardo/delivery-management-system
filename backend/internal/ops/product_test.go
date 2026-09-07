@@ -65,17 +65,63 @@ func TestProduct_CRUDLifecycle(t *testing.T) {
 		t.Fatalf("sku = %v, want nil after blank", *blanked.SKU)
 	}
 
-	// Soft delete: gone from the default list, still there with all=1.
+	// With no line items, delete removes the product outright.
 	if err := f.repo.DeleteProduct(ctx, f.companyID, created.ID); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
-	active, _ := f.repo.Products(ctx, f.companyID, false)
-	if len(active) != 0 {
-		t.Fatalf("active list after delete = %+v, want empty", active)
-	}
 	all, _ := f.repo.Products(ctx, f.companyID, true)
-	if len(all) != 1 || all[0].IsActive {
-		t.Fatalf("all list after delete = %+v, want one inactive", all)
+	if len(all) != 0 {
+		t.Fatalf("all list after hard delete = %+v, want empty", all)
+	}
+}
+
+// TestProduct_LockedAfterActivity pins the "used product" rules: identity
+// fields freeze, price stays editable, and delete downgrades to deactivate.
+func TestProduct_LockedAfterActivity(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+
+	p, err := f.repo.CreateProduct(ctx, f.companyID, createProductReq{
+		Name: "Water 20L", SKU: ptrStr("W20"), Unit: ptrStr("UN"), Price: ptrF64(10),
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	batch := f.newShipping(t, "")
+	d := f.newDelivery(t, batch, "PENDING")
+	if _, err := f.repo.SetDeliveryLines(ctx, f.companyID, d, []lineInput{
+		{ProductID: p.ID, Quantity: 1, UnitPrice: ptrF64(10)},
+	}); err != nil {
+		t.Fatalf("set lines: %v", err)
+	}
+
+	reloaded, _ := f.repo.Products(ctx, f.companyID, true)
+	if len(reloaded) != 1 || !reloaded[0].HasActivity {
+		t.Fatalf("want product flagged HasActivity, got %+v", reloaded)
+	}
+
+	// Renaming (or changing SKU/unit) is refused.
+	if _, err := f.repo.UpdateProduct(ctx, f.companyID, p.ID, updateProductReq{
+		Name: "Renamed", SKU: ptrStr("W20"), Unit: ptrStr("UN"), Price: ptrF64(10), IsActive: true,
+	}); !errors.Is(err, errProductFieldsLocked) {
+		t.Fatalf("rename err = %v, want errProductFieldsLocked", err)
+	}
+
+	// A price change with the identity fields untouched is allowed.
+	upd, err := f.repo.UpdateProduct(ctx, f.companyID, p.ID, updateProductReq{
+		Name: "Water 20L", SKU: ptrStr("W20"), Unit: ptrStr("UN"), Price: ptrF64(12), IsActive: true,
+	})
+	if err != nil {
+		t.Fatalf("price update: %v", err)
+	}
+	if upd.Price == nil || *upd.Price != 12 {
+		t.Fatalf("price = %v, want 12", upd.Price)
+	}
+
+	// Hard delete is refused for a used product.
+	if err := f.repo.DeleteProduct(ctx, f.companyID, p.ID); !errors.Is(err, errProductHasActivity) {
+		t.Fatalf("delete err = %v, want errProductHasActivity", err)
 	}
 }
 

@@ -5,6 +5,7 @@ import { api } from './lib/api'
 import { LoginPage } from './pages/LoginPage'
 import { HomePage } from './pages/HomePage'
 import { ProductsPage } from './pages/ProductsPage'
+import { CustomersPage } from './pages/CustomersPage'
 import { DriverShippingsPage } from './pages/driver/DriverShippingsPage'
 import { DriverShippingPage } from './pages/driver/DriverShippingPage'
 import { DriverStopPage } from './pages/driver/DriverStopPage'
@@ -49,6 +50,7 @@ function AuthedApp() {
     <Routes>
       <Route path="/" element={<HomePage />} />
       <Route path="/products" element={<ProductsPage />} />
+      <Route path="/customers" element={<CustomersPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

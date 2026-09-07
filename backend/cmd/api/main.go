@@ -37,9 +37,12 @@ func main() {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{cfg.AllowedOrigin},
-		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE"},
-		AllowedHeaders:   []string{"Accept", "Content-Type", "Authorization"},
+		AllowedOrigins: []string{cfg.AllowedOrigin},
+		AllowedMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE"},
+		AllowedHeaders: []string{"Accept", "Content-Type", "Authorization"},
+		// The sliding session hands a refreshed token back on these headers;
+		// the browser can only read them if they are explicitly exposed.
+		ExposedHeaders:   []string{"X-Access-Token", "X-Access-Token-Expires"},
 		AllowCredentials: true,
 	}))
 
@@ -53,7 +56,7 @@ func main() {
 
 	// Protected — everything behind RequireAuth gets claims in context.
 	r.Group(func(pr chi.Router) {
-		pr.Use(appmw.RequireAuth(cfg.JWTSecret))
+		pr.Use(appmw.RequireAuth(cfg.JWTSecret, cfg.AccessTokenTTL, cfg.SessionMaxLifetime))
 		pr.Get("/auth/me", authHandler.Me)
 		opsHandler.Register(pr)
 	})

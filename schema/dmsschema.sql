@@ -225,6 +225,29 @@ CREATE TABLE attachment (
 );
 CREATE INDEX idx_attachment_delivery ON attachment(delivery_id);
 
+-- ---------------------------------------------------------------------
+-- audit_log  (see migration 000007)
+--
+-- One row per INSERT/UPDATE/DELETE on any business table, written by an
+-- AFTER trigger (log_row_change). No application code reads it yet — it is
+-- here so every modification has a timestamp and, when the API sets
+-- `app.user_id` on its transaction, an author. `changed_by` is deliberately
+-- NOT a foreign key: the audit trail must outlive the rows it references.
+-- ---------------------------------------------------------------------
+CREATE TABLE audit_log (
+    audit_log_id  BIGSERIAL PRIMARY KEY,
+    table_name    TEXT        NOT NULL,
+    row_pk        TEXT        NOT NULL,
+    action        TEXT        NOT NULL CHECK (action IN ('INSERT', 'UPDATE', 'DELETE')),
+    old_row       JSONB,
+    new_row       JSONB,
+    changed_by    UUID,
+    changed_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_audit_log_table_row  ON audit_log(table_name, row_pk);
+CREATE INDEX idx_audit_log_changed_at ON audit_log(changed_at);
+CREATE INDEX idx_audit_log_changed_by ON audit_log(changed_by);
+
 -- =====================================================================
 -- Example trigger sketch for a business rule that can't be expressed
 -- as a plain CHECK constraint (needs a join to delivery_status):

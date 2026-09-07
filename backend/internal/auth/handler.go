@@ -68,7 +68,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := GenerateToken(u.UserID, u.CompanyID, u.RoleID, u.RoleName, h.jwtSecret, h.tokenTTL)
+	token, err := GenerateToken(u.UserID, u.CompanyID, u.RoleID, u.RoleName, h.jwtSecret, h.tokenTTL, time.Now())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not issue token")
 		return

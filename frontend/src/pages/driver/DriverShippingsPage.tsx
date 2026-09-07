@@ -1,12 +1,19 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import { useT } from '../../context/LanguageContext'
 import { api, ApiError, type Shipping } from '../../lib/api'
+import { isoToBR } from '../../lib/date'
 import { ThemeToggle } from '../../components/ThemeToggle'
 import './driver.css'
 
 export function DriverShippingsPage() {
   const { logout } = useAuth()
+  const t = useT()
+  const tRef = useRef(t)
+  useEffect(() => {
+    tRef.current = t
+  }, [t])
   const navigate = useNavigate()
   const [date, setDate] = useState('')
   const [shippings, setShippings] = useState<Shipping[] | null>(null)
@@ -20,7 +27,7 @@ export function DriverShippingsPage() {
       setShippings(r.shippings)
       setDate(r.date)
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Could not reach the server.')
+      setError(e instanceof ApiError ? e.message : tRef.current.common.serverError)
     }
   }, [])
 
@@ -32,7 +39,7 @@ export function DriverShippingsPage() {
   return (
     <div className="drv">
       <header className="drv__bar">
-        <span className="drv__title">My deliveries</span>
+        <span className="drv__title">{t.driver.myDeliveries}</span>
         <input
           className="drv__date"
           type="date"
@@ -41,18 +48,20 @@ export function DriverShippingsPage() {
             setDate(e.target.value)
             load(e.target.value)
           }}
-          aria-label="Date"
+          aria-label={t.driver.dateAria}
         />
         <ThemeToggle />
         <button type="button" className="drv__logout" onClick={logout}>
-          Log out
+          {t.common.logOut}
         </button>
       </header>
 
       <main className="drv__main">
         {error && <p className="drv__error">{error}</p>}
-        {!shippings && !error && <p className="drv__note">Loading…</p>}
-        {shippings?.length === 0 && <p className="drv__note">Nothing scheduled for {date}.</p>}
+        {!shippings && !error && <p className="drv__note">{t.common.loading}</p>}
+        {shippings?.length === 0 && (
+          <p className="drv__note">{t.driver.nothingScheduled(isoToBR(date))}</p>
+        )}
 
         {shippings?.map((s) => {
           const done = s.deliveries.filter((d) => d.finishedAt).length
@@ -65,9 +74,7 @@ export function DriverShippingsPage() {
               onClick={() => navigate(`/d/shipping/${s.id}`)}
             >
               <span className="drv-card__code">{s.batchCode}</span>
-              <span className="drv-card__meta">
-                {total} stop{total === 1 ? '' : 's'} · {done}/{total} done
-              </span>
+              <span className="drv-card__meta">{t.driver.stopsDone(done, total)}</span>
               {s.notes && <span className="drv-card__notes">{s.notes}</span>}
             </button>
           )

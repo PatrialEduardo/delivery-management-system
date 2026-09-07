@@ -38,7 +38,7 @@ services:
     env_file: .env
     environment:
       PORT: "8080"
-      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_DB}?sslmode=require&channel_binding=require
     ports:
       - "${BACKEND_PORT}:8080"
     depends_on:

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError, type Shipping } from '../../lib/api'
 import { directionsUrl, getPositionBestEffort, telUrl, whatsappUrl } from '../../lib/geo'
+import { useLang, useT } from '../../context/LanguageContext'
+import { statusLabel } from '../../lib/status'
 import { ThemeToggle } from '../../components/ThemeToggle'
 import './driver.css'
 
@@ -9,6 +11,8 @@ type Outcome = 'COMPLETE' | 'ABSENT' | 'TROUBLE'
 
 export function DriverStopPage() {
   const { shippingId, deliveryId } = useParams()
+  const { lang } = useLang()
+  const t = useT()
   const navigate = useNavigate()
   const sid = Number(shippingId)
   const did = Number(deliveryId)
@@ -29,9 +33,9 @@ export function DriverStopPage() {
       setShipping(await api.myShipping(sid))
       setError(null)
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Could not load the delivery.')
+      setError(e instanceof ApiError ? e.message : t.driver.errLoad)
     }
-  }, [sid])
+  }, [sid, t])
 
   useEffect(() => {
     // Fetch-on-mount / on-id-change; the async setState inside load() is
@@ -56,7 +60,7 @@ export function DriverStopPage() {
       await api.startDelivery(did, geo)
       await load()
     } catch (e) {
-      setOpErr(e instanceof ApiError ? e.message : 'Could not start the delivery.')
+      setOpErr(e instanceof ApiError ? e.message : t.driver.errStart)
       // 409 = another stop is still open. Point the driver at it.
       if (e instanceof ApiError && e.status === 409) {
         api
@@ -81,7 +85,7 @@ export function DriverStopPage() {
       setTroubleNote('')
       await load()
     } catch (e) {
-      setOpErr(e instanceof ApiError ? e.message : 'Could not finish the delivery.')
+      setOpErr(e instanceof ApiError ? e.message : t.driver.errFinish)
     } finally {
       setBusy(false)
     }
@@ -95,29 +99,29 @@ export function DriverStopPage() {
           className="drv__back"
           onClick={() => navigate(`/d/shipping/${sid}`)}
         >
-          ‹ {shipping?.batchCode ?? 'Shipping'}
+          ‹ {shipping?.batchCode ?? t.driver.shippingFallback}
         </button>
         <span className="drv__title">
-          {idx >= 0 ? `Stop ${idx + 1} of ${stops.length}` : ''}
+          {idx >= 0 ? t.driver.stopXofY(idx + 1, stops.length) : ''}
         </span>
         <ThemeToggle />
       </header>
 
       <main className="drv__main drv__main--stop">
         {error && <p className="drv__error">{error}</p>}
-        {!shipping && !error && <p className="drv__note">Loading…</p>}
-        {shipping && !stop && <p className="drv__note">That stop isn&rsquo;t on this shipping.</p>}
+        {!shipping && !error && <p className="drv__note">{t.common.loading}</p>}
+        {shipping && !stop && <p className="drv__note">{t.driver.stopNotOnShipping}</p>}
 
         {stop && (
           <>
             <div className="drv-stop__card">
               <span className="status-badge" style={{ ['--c' as string]: stop.statusColor }}>
-                {stop.statusName}
+                {statusLabel(t, stop.statusCode, stop.statusName)}
               </span>
               <h1 className="drv-stop__name">{stop.customerName}</h1>
               <p className="drv-stop__addr">{stop.addressLine}</p>
               {stop.attemptNumber > 1 && (
-                <p className="drv-stop__attempt">Attempt {stop.attemptNumber}</p>
+                <p className="drv-stop__attempt">{t.driver.attempt(stop.attemptNumber)}</p>
               )}
 
               <div className="drv-stop__links">
@@ -127,15 +131,15 @@ export function DriverStopPage() {
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  Route
+                  {t.driver.route}
                 </a>
                 {stop.customerPhone && (
                   <>
                     <a className="drv-btn drv-btn--wa" href={whatsappUrl(stop.customerPhone)}>
-                      WhatsApp
+                      {t.driver.whatsapp}
                     </a>
                     <a className="drv-btn drv-btn--call" href={telUrl(stop.customerPhone)}>
-                      Call
+                      {t.driver.call}
                     </a>
                   </>
                 )}
@@ -145,8 +149,10 @@ export function DriverStopPage() {
             {stop.finishedAt ? (
               <div className="drv-stop__result">
                 <p className="drv-stop__result-line">
-                  Closed as <strong>{stop.statusName}</strong> ·{' '}
-                  {new Date(stop.finishedAt).toLocaleString()}
+                  {t.driver.closedAs(
+                    statusLabel(t, stop.statusCode, stop.statusName),
+                    new Date(stop.finishedAt).toLocaleString(lang),
+                  )}
                 </p>
                 {stop.notes && <p className="drv-stop__result-note">{stop.notes}</p>}
               </div>
@@ -163,7 +169,7 @@ export function DriverStopPage() {
                       )
                     }
                   >
-                    Open the stop in progress
+                    {t.driver.openInProgress}
                   </button>
                 )}
 
@@ -174,16 +180,16 @@ export function DriverStopPage() {
                     onClick={start}
                     disabled={busy}
                   >
-                    {busy ? 'Starting…' : 'Start delivery'}
+                    {busy ? t.common.starting : t.driver.startDelivery}
                   </button>
                 ) : troubleOpen ? (
                   <div className="drv-trouble">
-                    <label htmlFor="trouble">Describe the problem</label>
+                    <label htmlFor="trouble">{t.driver.describeProblem}</label>
                     <textarea
                       id="trouble"
                       value={troubleNote}
                       onChange={(e) => setTroubleNote(e.target.value)}
-                      placeholder="At least 15 characters"
+                      placeholder={t.driver.atLeast15}
                       rows={3}
                       autoFocus
                     />
@@ -197,7 +203,7 @@ export function DriverStopPage() {
                           setTroubleNote('')
                         }}
                       >
-                        Cancel
+                        {t.common.cancel}
                       </button>
                       <button
                         type="button"
@@ -205,7 +211,7 @@ export function DriverStopPage() {
                         disabled={busy || troubleNote.trim().length < 15}
                         onClick={() => finish('TROUBLE', troubleNote.trim())}
                       >
-                        {busy ? 'Saving…' : 'Report trouble'}
+                        {busy ? t.common.saving : t.driver.reportTrouble}
                       </button>
                     </div>
                   </div>
@@ -217,7 +223,7 @@ export function DriverStopPage() {
                       onClick={() => finish('COMPLETE')}
                       disabled={busy}
                     >
-                      Delivery complete
+                      {t.driver.deliveryComplete}
                     </button>
                     <button
                       type="button"
@@ -225,7 +231,7 @@ export function DriverStopPage() {
                       onClick={() => finish('ABSENT')}
                       disabled={busy}
                     >
-                      Absent client
+                      {t.driver.absentClient}
                     </button>
                     <button
                       type="button"
@@ -233,7 +239,7 @@ export function DriverStopPage() {
                       onClick={() => setTroubleOpen(true)}
                       disabled={busy}
                     >
-                      Trouble
+                      {t.driver.trouble}
                     </button>
                   </div>
                 )}
@@ -251,7 +257,7 @@ export function DriverStopPage() {
             disabled={!prev}
             onClick={() => prev && navigate(`/d/shipping/${sid}/stop/${prev.id}`)}
           >
-            ‹ Prev
+            {t.driver.prev}
           </button>
           <button
             type="button"
@@ -259,7 +265,7 @@ export function DriverStopPage() {
             disabled={!next}
             onClick={() => next && navigate(`/d/shipping/${sid}/stop/${next.id}`)}
           >
-            Next ›
+            {t.driver.next}
           </button>
         </nav>
       )}

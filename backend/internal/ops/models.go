@@ -29,6 +29,10 @@ type Product struct {
 	Unit     *string  `json:"unit"`
 	Price    *float64 `json:"price"`
 	IsActive bool     `json:"isActive"`
+	// HasActivity is true when at least one delivery line references this
+	// product. While true, Name/SKU/Unit are frozen and the product can only
+	// be deactivated, not deleted.
+	HasActivity bool `json:"hasActivity"`
 }
 
 type createProductReq struct {
@@ -64,7 +68,35 @@ type Customer struct {
 	ID        string    `json:"id"`
 	FullName  string    `json:"fullName"`
 	Phone     *string   `json:"phone"`
+	Notes     *string   `json:"notes"`
+	IsActive  bool      `json:"isActive"`
 	Addresses []Address `json:"addresses"`
+	// HasActivity is true when the customer has at least one delivery. While
+	// true, FullName is frozen and the customer can only be deactivated.
+	HasActivity bool `json:"hasActivity"`
+	// Stats is filled only for the management screen (?stats=1); nil otherwise.
+	Stats *CustomerStats `json:"stats"`
+}
+
+// CustomerStats is the "Excel report" roll-up for one customer, across every
+// delivery their company has ever recorded for them.
+type CustomerStats struct {
+	Total            int     `json:"total"`
+	Delivered        int     `json:"delivered"`
+	Failed           int     `json:"failed"`
+	Absent           int     `json:"absent"`
+	InProgress       int     `json:"inProgress"`
+	Pending          int     `json:"pending"`
+	SuccessRate      float64 `json:"successRate"` // delivered / finished, as a percentage (1 dp)
+	LastDeliveryDate *string `json:"lastDeliveryDate"`
+	DeliveredValue   float64 `json:"deliveredValue"` // Σ qty×unitPrice over DELIVERED stops
+}
+
+type updateCustomerReq struct {
+	FullName string  `json:"fullName"`
+	Phone    *string `json:"phone"`
+	Notes    *string `json:"notes"`
+	IsActive bool    `json:"isActive"`
 }
 
 // Delivery is one stop inside a shipping.
@@ -161,9 +193,12 @@ type StatusCount struct {
 	Count    int    `json:"count"`
 }
 
-// HomePayload is the whole GET /shippings?date=... response.
+// HomePayload is the whole GET /shippings?from=&to= response. Date is kept
+// (equal to From) so older clients that read `date` don't break.
 type HomePayload struct {
 	Date          string        `json:"date"`
+	From          string        `json:"from"`
+	To            string        `json:"to"`
 	Shippings     []Shipping    `json:"shippings"`
 	StatusSummary []StatusCount `json:"statusSummary"`
 }

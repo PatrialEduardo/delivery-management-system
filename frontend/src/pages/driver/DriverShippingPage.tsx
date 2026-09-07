@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError, type Shipping } from '../../lib/api'
+import { useT } from '../../context/LanguageContext'
+import { statusLabel } from '../../lib/status'
+import { isoToBR } from '../../lib/date'
 import { ThemeToggle } from '../../components/ThemeToggle'
 import './driver.css'
 
 export function DriverShippingPage() {
   const { shippingId } = useParams()
+  const t = useT()
   const navigate = useNavigate()
   const id = Number(shippingId)
 
@@ -29,12 +33,12 @@ export function DriverShippingPage() {
         }
       })
       .catch((e) => {
-        if (alive) setError(e instanceof ApiError ? e.message : 'Could not load the shipping.')
+        if (alive) setError(e instanceof ApiError ? e.message : t.driver.errLoadShipping)
       })
     return () => {
       alive = false
     }
-  }, [id])
+  }, [id, t])
 
   const loaded = current && current.id === id
 
@@ -42,7 +46,7 @@ export function DriverShippingPage() {
     <div className="drv">
       <header className="drv__bar">
         <button type="button" className="drv__back" onClick={() => navigate('/d')}>
-          ‹ Shippings
+          {t.driver.shippings}
         </button>
         <span className="drv__title">{current?.batchCode ?? '…'}</span>
         <ThemeToggle />
@@ -50,12 +54,12 @@ export function DriverShippingPage() {
 
       <main className="drv__main">
         {error && <p className="drv__error">{error}</p>}
-        {!loaded && !error && <p className="drv__note">Loading…</p>}
+        {!loaded && !error && <p className="drv__note">{t.common.loading}</p>}
 
         {loaded && (
           <>
             <p className="drv-sh__meta">
-              {current.driverName} · {current.deliveryDate}
+              {current.driverName} · {isoToBR(current.deliveryDate)}
             </p>
             {current.notes && <p className="drv-sh__notes">{current.notes}</p>}
 
@@ -93,7 +97,7 @@ export function DriverShippingPage() {
                         className="status-badge"
                         style={{ ['--c' as string]: d.statusColor }}
                       >
-                        {d.statusName}
+                        {statusLabel(t, d.statusCode, d.statusName)}
                       </span>
                     </button>
                   </li>

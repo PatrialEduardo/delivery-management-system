@@ -30,6 +30,19 @@
 .prods__user {
   font-size: 0.85rem;
   color: var(--muted-on-light);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 599px) {
+  .prods__bar {
+    gap: 0.5rem;
+  }
+  .prods__user {
+    display: none;
+  }
 }
 
 .prods__main {

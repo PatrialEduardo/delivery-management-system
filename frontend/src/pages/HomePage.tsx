@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useT } from '../context/LanguageContext'
 import {
   api,
   ApiError,
@@ -11,14 +12,24 @@ import {
   type Shipping,
   type StatusCount,
 } from '../lib/api'
+import { statusLabel } from '../lib/status'
 import { ThemeToggle } from '../components/ThemeToggle'
+import { LanguageToggle } from '../components/LanguageToggle'
 import { ShippingSection } from '../components/ShippingSection'
 import { NewShippingModal } from '../components/NewShippingModal'
 import { AddDeliveryModal } from '../components/AddDeliveryModal'
 import { LinkDeliveryModal } from '../components/LinkDeliveryModal'
 import { DeliveryProductsModal } from '../components/DeliveryProductsModal'
-import { toLocalISODate } from '../lib/date'
+import { toLocalISODate, isoToBR } from '../lib/date'
 import './HomePage.css'
+
+const MAX_RANGE_DAYS = 92
+
+/** Whole days between two YYYY-MM-DD strings (order-independent). */
+function spanDays(a: string, b: string): number {
+  const ms = Math.abs(Date.parse(`${a}T00:00:00Z`) - Date.parse(`${b}T00:00:00Z`))
+  return Math.round(ms / 86_400_000)
+}
 
 type ModalState =
   | null
@@ -29,11 +40,20 @@ type ModalState =
 
 export function HomePage() {
   const { user, logout } = useAuth()
+  const t = useT()
+  // Keep a stable ref so data-loading callbacks don't churn (and re-fetch,
+  // resetting the date range) every time the language changes.
+  const tRef = useRef(t)
+  useEffect(() => {
+    tRef.current = t
+  }, [t])
   const navigate = useNavigate()
 
-  // Default the board to the viewer's local day, not the server's clock
-  // (the API's "today" can drift from the user's — e.g. a container in UTC).
-  const [date, setDate] = useState(() => toLocalISODate())
+  // The board is a *date range* (dd/MM/yyyy – dd/MM/yyyy). It defaults to a
+  // single day — the viewer's local day, not the server's clock (the API's
+  // "today" can drift, e.g. a container in UTC).
+  const [from, setFrom] = useState(() => toLocalISODate())
+  const [to, setTo] = useState(() => toLocalISODate())
   const [payload, setPayload] = useState<HomePayload | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -48,15 +68,16 @@ export function HomePage() {
   const [modal, setModal] = useState<ModalState>(null)
   const [menuOpen, setMenuOpen] = useState(false)
 
-  const load = useCallback(async (d: string) => {
+  const load = useCallback(async (f: string, tt: string) => {
     setLoading(true)
     setError(null)
     try {
-      const p = await api.shippings(d)
+      const p = await api.shippings(f, tt)
       setPayload(p)
-      setDate(p.date)
+      setFrom(p.from)
+      setTo(p.to)
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Could not reach the server.')
+      setError(e instanceof ApiError ? e.message : tRef.current.common.serverError)
     } finally {
       setLoading(false)
     }
@@ -75,22 +96,39 @@ export function HomePage() {
     // synchronously, which the set-state-in-effect rule flags; that is the
     // intended behaviour for a first data fetch.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    load(toLocalISODate())
+    load(toLocalISODate(), toLocalISODate())
     api.drivers().then(setDrivers).catch(() => {})
     refreshCustomers()
   }, [load, refreshCustomers])
 
   useEffect(() => {
     if (!toast) return
-    const t = setTimeout(() => setToast(null), 4000)
-    return () => clearTimeout(t)
+    const id = setTimeout(() => setToast(null), 4000)
+    return () => clearTimeout(id)
   }, [toast])
 
-  function changeDate(next: string) {
-    // The native date input can be cleared; fall back to the local day.
-    const d = next || toLocalISODate()
-    setDate(d)
-    load(d)
+  // Apply a new range: clamp it coherent, reject an over-wide span with a
+  // translated message before hitting the API, otherwise reload.
+  function applyRange(f: string, tt: string) {
+    setFrom(f)
+    setTo(tt)
+    if (spanDays(f, tt) > MAX_RANGE_DAYS) {
+      setPayload(null)
+      setLoading(false)
+      setError(t.home.rangeTooWide)
+      return
+    }
+    load(f, tt)
+  }
+
+  function changeFrom(next: string) {
+    const f = next || toLocalISODate()
+    applyRange(f, f > to ? f : to)
+  }
+
+  function changeTo(next: string) {
+    const tt = next || toLocalISODate()
+    applyRange(tt < from ? tt : from, tt)
   }
 
   function toggle(id: number) {
@@ -135,12 +173,12 @@ export function HomePage() {
               }
             : prev,
         )
-      } catch {
-        setToast('Could not save the new order — reloading.')
-        load(date)
+      } catch (e) {
+        setToast(e instanceof ApiError ? e.message : tRef.current.home.reorderFailed)
+        load(from, to)
       }
     },
-    [date, load],
+    [from, to, load],
   )
 
   async function handleCreateShipping(body: {
@@ -150,8 +188,9 @@ export function HomePage() {
   }) {
     await api.createShipping(body)
     setModal(null)
-    setDate(body.deliveryDate)
-    await load(body.deliveryDate)
+    setFrom(body.deliveryDate)
+    setTo(body.deliveryDate)
+    await load(body.deliveryDate, body.deliveryDate)
   }
 
   async function handleAddDelivery(
@@ -160,16 +199,18 @@ export function HomePage() {
   ) {
     await api.quickAddDelivery(shippingId, body)
     setModal(null)
-    await load(date)
+    await load(from, to)
   }
 
   async function handleLinked() {
     setModal(null)
-    await load(date)
+    await load(from, to)
   }
 
   const shippings = payload?.shippings ?? []
   const summary: StatusCount[] = payload?.statusSummary ?? []
+  const rangeLabel =
+    from === to ? isoToBR(from) : `${isoToBR(from)} – ${isoToBR(to)}`
 
   const filterActive = statusFilter.size > 0
   // When a status filter is on, keep only matching stops and drop shippings
@@ -199,29 +240,51 @@ export function HomePage() {
         <button
           type="button"
           className="home__hamburger"
-          aria-label="Open menu"
+          aria-label={t.common.openMenu}
           onClick={() => setMenuOpen(true)}
         >
           ☰
         </button>
         <span className="home__brand">DMS</span>
-        <input
-          className="home__date"
-          type="date"
-          value={date}
-          onChange={(e) => changeDate(e.target.value)}
-          aria-label="Delivery date"
-        />
+        <div className="home__ranges">
+          <label className="home__range">
+            <span className="home__range-cap">{t.home.from}</span>
+            <input
+              className="home__date"
+              type="date"
+              value={from}
+              max={to}
+              onChange={(e) => changeFrom(e.target.value)}
+              aria-label={t.home.fromAria}
+            />
+          </label>
+          <label className="home__range">
+            <span className="home__range-cap">{t.home.to}</span>
+            <input
+              className="home__date"
+              type="date"
+              value={to}
+              min={from}
+              onChange={(e) => changeTo(e.target.value)}
+              aria-label={t.home.toAria}
+            />
+          </label>
+          <span className="home__range-label" aria-hidden="true">
+            {rangeLabel}
+          </span>
+        </div>
         <span className="home__spacer" />
         {user && <span className="home__user">{user.fullName}</span>}
         <ThemeToggle />
         <button type="button" className="btn home__logout" onClick={logout}>
-          Log out
+          {t.common.logOut}
         </button>
       </header>
 
-      <div className="home__summary" aria-label="Filter by status">
-        {summary.length === 0 && <span className="home__summary-empty">No deliveries.</span>}
+      <div className="home__summary" aria-label={t.home.filterByStatus}>
+        {summary.length === 0 && (
+          <span className="home__summary-empty">{t.home.noDeliveries}</span>
+        )}
         {summary.map((s) => {
           const on = statusFilter.has(s.statusId)
           return (
@@ -235,7 +298,7 @@ export function HomePage() {
               onClick={() => toggleStatus(s.statusId)}
             >
               <span className="chip__dot" style={{ background: s.colorHex }} />
-              <span className="chip__name">{s.name}</span>
+              <span className="chip__name">{statusLabel(t, s.code, s.name)}</span>
               <span className="chip__count">{s.count}</span>
             </button>
           )
@@ -246,7 +309,7 @@ export function HomePage() {
             className="chip chip--clear"
             onClick={() => setStatusFilter(new Set())}
           >
-            Clear
+            {t.home.clear}
           </button>
         )}
       </div>
@@ -262,7 +325,7 @@ export function HomePage() {
               setMenuOpen(false)
             }}
           >
-            + New shipping
+            {t.nav.newShipping}
           </button>
           <button
             type="button"
@@ -272,35 +335,45 @@ export function HomePage() {
               setMenuOpen(false)
             }}
           >
-            + New delivery
+            {t.nav.newDelivery}
           </button>
           <button
             type="button"
             className="btn home__action home__action--nav"
             onClick={() => navigate('/products')}
           >
-            Products
+            {t.nav.products}
           </button>
+          <button
+            type="button"
+            className="btn home__action home__action--nav"
+            onClick={() => navigate('/customers')}
+          >
+            {t.nav.customers}
+          </button>
+          <div className="home__sidebar-foot">
+            <LanguageToggle />
+          </div>
         </aside>
 
         <main className="home__main">
-          {loading && <p className="home__note">Loading…</p>}
+          {loading && <p className="home__note">{t.common.loading}</p>}
           {error && !loading && <p className="home__error">{error}</p>}
           {!loading && !error && shippings.length === 0 && (
             <div className="home__empty">
-              <p>No shippings for {date || 'today'}.</p>
+              <p>{t.home.noShippingsForRange(rangeLabel)}</p>
               <button
                 type="button"
                 className="btn btn--primary"
                 onClick={() => setModal({ kind: 'newShipping' })}
               >
-                + New shipping
+                {t.nav.newShipping}
               </button>
             </div>
           )}
 
           {!loading && !error && shippings.length > 0 && visibleShippings.length === 0 && (
-            <p className="home__note">No stops match the selected status.</p>
+            <p className="home__note">{t.home.noStopsMatch}</p>
           )}
 
           {!loading &&
@@ -311,6 +384,7 @@ export function HomePage() {
                 shipping={s}
                 collapsed={collapsed.has(s.id)}
                 disableReorder={filterActive}
+                showDate={from !== to}
                 onToggle={() => toggle(s.id)}
                 onReorder={reorder}
                 onAddDelivery={(shippingId) => setModal({ kind: 'addDelivery', shippingId })}
@@ -328,7 +402,7 @@ export function HomePage() {
       {modal?.kind === 'newShipping' && (
         <NewShippingModal
           drivers={drivers}
-          defaultDate={date}
+          defaultDate={from}
           onClose={() => setModal(null)}
           onCreate={handleCreateShipping}
         />
@@ -348,7 +422,7 @@ export function HomePage() {
       {modal?.kind === 'link' && (
         <LinkDeliveryModal
           shipping={modal.shipping}
-          date={date}
+          date={modal.shipping.deliveryDate}
           onClose={() => setModal(null)}
           onLinked={handleLinked}
         />
@@ -359,7 +433,7 @@ export function HomePage() {
           delivery={modal.delivery}
           shippingCode={modal.shippingCode}
           onClose={() => setModal(null)}
-          onSaved={() => load(date)}
+          onSaved={() => load(from, to)}
         />
       )}
     </div>

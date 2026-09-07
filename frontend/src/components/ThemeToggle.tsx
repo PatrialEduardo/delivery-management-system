@@ -1,4 +1,5 @@
 import { useTheme } from '../context/ThemeContext'
+import { useT } from '../context/LanguageContext'
 import './theme-toggle.css'
 
 /**
@@ -7,15 +8,16 @@ import './theme-toggle.css'
  */
 export function ThemeToggle({ className = '' }: { className?: string }) {
   const { theme, toggle } = useTheme()
-  const next = theme === 'dark' ? 'light' : 'dark'
+  const t = useT()
+  const label = theme === 'dark' ? t.theme.toLight : t.theme.toDark
 
   return (
     <button
       type="button"
       className={`theme-toggle ${className}`.trim()}
       onClick={toggle}
-      aria-label={`Switch to ${next} theme`}
-      title={`Switch to ${next} theme`}
+      aria-label={label}
+      title={label}
     >
       {theme === 'dark' ? (
         // sun

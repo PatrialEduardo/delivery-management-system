@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react'
+import { useT } from '../context/LanguageContext'
 import './ui.css'
 
 interface ModalProps {
@@ -9,6 +10,7 @@ interface ModalProps {
 }
 
 export function Modal({ title, onClose, children, footer }: ModalProps) {
+  const t = useT()
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -28,7 +30,7 @@ export function Modal({ title, onClose, children, footer }: ModalProps) {
       <div className="modal__card">
         <header className="modal__head">
           <h2>{title}</h2>
-          <button type="button" className="modal__x" onClick={onClose} aria-label="Close">
+          <button type="button" className="modal__x" onClick={onClose} aria-label={t.common.close}>
             &times;
           </button>
         </header>

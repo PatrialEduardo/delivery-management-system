@@ -11,3 +11,9 @@ export function toLocalISODate(d: Date = new Date()): string {
   const day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
 }
+
+/** `dd/MM/yyyy` from a `YYYY-MM-DD` string — display only, no timezone math. */
+export function isoToBR(iso: string): string {
+  const [y, m, d] = iso.split('-')
+  return y && m && d ? `${d}/${m}/${y}` : iso
+}

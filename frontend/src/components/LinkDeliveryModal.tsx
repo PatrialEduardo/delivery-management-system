@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
 import { api, ApiError, type LinkableDelivery, type Shipping } from '../lib/api'
+import { useT } from '../context/LanguageContext'
+import { statusLabel } from '../lib/status'
+import { isoToBR } from '../lib/date'
 import { Modal } from './Modal'
 
 interface Props {
@@ -10,6 +13,7 @@ interface Props {
 }
 
 export function LinkDeliveryModal({ shipping, date, onClose, onLinked }: Props) {
+  const t = useT()
   const [rows, setRows] = useState<LinkableDelivery[] | null>(null)
   const [selected, setSelected] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
@@ -20,11 +24,11 @@ export function LinkDeliveryModal({ shipping, date, onClose, onLinked }: Props) 
     api
       .linkableDeliveries(date, shipping.id)
       .then((r) => alive && setRows(r))
-      .catch(() => alive && setErr('Could not load deliveries.'))
+      .catch(() => alive && setErr(t.linkDelivery.errLoad))
     return () => {
       alive = false
     }
-  }, [date, shipping.id])
+  }, [date, shipping.id, t])
 
   async function link() {
     if (selected == null) return
@@ -34,19 +38,19 @@ export function LinkDeliveryModal({ shipping, date, onClose, onLinked }: Props) 
       await api.linkDelivery(shipping.id, selected)
       await onLinked()
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : 'Could not link the delivery.')
+      setErr(e instanceof ApiError ? e.message : t.linkDelivery.errLink)
       setBusy(false)
     }
   }
 
   return (
     <Modal
-      title={`Link a delivery into ${shipping.batchCode}`}
+      title={t.linkDelivery.title(shipping.batchCode)}
       onClose={onClose}
       footer={
         <>
           <button type="button" className="btn" onClick={onClose}>
-            Cancel
+            {t.common.cancel}
           </button>
           <button
             type="button"
@@ -54,18 +58,18 @@ export function LinkDeliveryModal({ shipping, date, onClose, onLinked }: Props) 
             onClick={link}
             disabled={busy || selected == null}
           >
-            {busy ? 'Linking…' : 'Link delivery'}
+            {busy ? t.common.linking : t.linkDelivery.link}
           </button>
         </>
       }
     >
       {err && <p className="form-error">{err}</p>}
 
-      <p className="link-hint">Only deliveries scheduled for the same day are shown.</p>
+      <p className="link-hint">{t.linkDelivery.hint}</p>
 
-      {rows == null && !err && <p className="link-empty">Loading…</p>}
+      {rows == null && !err && <p className="link-empty">{t.common.loading}</p>}
       {rows != null && rows.length === 0 && (
-        <p className="link-empty">No other deliveries on {date}.</p>
+        <p className="link-empty">{t.linkDelivery.noneOn(isoToBR(date))}</p>
       )}
 
       <ul className="link-list">
@@ -81,10 +85,10 @@ export function LinkDeliveryModal({ shipping, date, onClose, onLinked }: Props) 
               <span className="link-item__main">
                 <span className="link-item__name">{d.customerName}</span>
                 <span className="link-item__addr">{d.addressLine}</span>
-                <span className="link-item__from">now in {d.batchCode}</span>
+                <span className="link-item__from">{t.linkDelivery.nowIn(d.batchCode)}</span>
               </span>
               <span className="status-badge" style={{ ['--c' as string]: d.statusColor }}>
-                {d.statusName}
+                {statusLabel(t, d.statusCode, d.statusName)}
               </span>
             </label>
           </li>

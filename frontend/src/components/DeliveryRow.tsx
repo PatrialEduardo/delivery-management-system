@@ -2,6 +2,8 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { Delivery } from '../lib/api'
 import { money } from '../lib/money'
+import { useT } from '../context/LanguageContext'
+import { statusLabel } from '../lib/status'
 
 export function DeliveryRow({
   delivery,
@@ -14,6 +16,7 @@ export function DeliveryRow({
   disabled?: boolean
   onOpen?: () => void
 }) {
+  const t = useT()
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: delivery.id,
     disabled,
@@ -35,7 +38,7 @@ export function DeliveryRow({
         <button
           type="button"
           className="drow__handle"
-          aria-label={`Reorder ${delivery.customerName}`}
+          aria-label={t.shipping.reorderAria(delivery.customerName)}
           {...attributes}
           {...listeners}
         >
@@ -53,14 +56,12 @@ export function DeliveryRow({
         <span className="drow__addr">{delivery.addressLine}</span>
         <span className="drow__items">
           {delivery.itemCount > 0
-            ? `${delivery.itemCount} item${delivery.itemCount === 1 ? '' : 's'} · ${money(
-                delivery.itemTotal,
-              )}`
-            : '+ add items'}
+            ? `${t.shipping.items(delivery.itemCount)} · ${money(delivery.itemTotal)}`
+            : t.shipping.addItems}
         </span>
       </button>
       <span className="status-badge" style={{ ['--c' as string]: delivery.statusColor }}>
-        {delivery.statusName}
+        {statusLabel(t, delivery.statusCode, delivery.statusName)}
       </span>
     </li>
   )

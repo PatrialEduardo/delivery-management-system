@@ -37,6 +37,26 @@
   font-size: 0.9rem;
 }
 
+.home__ranges {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.home__range {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.home__range-cap {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted-on-light);
+}
+
 .home__date {
   font: inherit;
   font-size: 0.9rem;
@@ -47,6 +67,12 @@
   color: var(--text-on-light);
 }
 
+.home__range-label {
+  font-size: 0.8rem;
+  color: var(--muted-on-light);
+  white-space: nowrap;
+}
+
 .home__spacer {
   flex: 1;
 }
@@ -54,6 +80,10 @@
 .home__user {
   font-size: 0.85rem;
   color: var(--muted-on-light);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .home__logout {
@@ -165,6 +195,14 @@
   margin-top: 0.25rem;
   border-top: 1px solid var(--hairline-light);
   border-radius: var(--radius);
+}
+
+.home__sidebar-foot {
+  margin-top: auto;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--hairline-light);
+  display: flex;
+  justify-content: center;
 }
 
 .home__scrim {
@@ -408,8 +446,27 @@
     display: inline-block;
   }
 
-  .home__user {
+  .home__user,
+  .home__range-label,
+  .home__range-cap {
     display: none;
+  }
+
+  /* The two date fields drop onto their own full-width row below the bar. */
+  .home__topbar {
+    flex-wrap: wrap;
+    gap: 0.5rem 0.6rem;
+  }
+  .home__ranges {
+    order: 10;
+    flex-basis: 100%;
+    gap: 0.5rem;
+  }
+  .home__ranges .home__range {
+    flex: 1;
+  }
+  .home__ranges .home__date {
+    width: 100%;
   }
 
   .home__sidebar {

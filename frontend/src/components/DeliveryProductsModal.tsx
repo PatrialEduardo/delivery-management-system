@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api, ApiError, type Delivery, type LineInput, type Product } from '../lib/api'
 import { money } from '../lib/money'
+import { useT } from '../context/LanguageContext'
 import { Modal } from './Modal'
 import './delivery-products.css'
 
@@ -35,11 +36,16 @@ const num = (s: string): number | null => {
 }
 
 export function DeliveryProductsModal({ delivery, shippingCode, onClose, onSaved }: Props) {
+  const t = useT()
   const [products, setProducts] = useState<Product[]>([])
   const [rows, setRows] = useState<Row[]>([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+
+  // Line items are frozen once the driver has started (or finished) the stop.
+  const locked =
+    delivery.statusCode !== 'PENDING' && delivery.statusCode !== 'ASSIGNED'
 
   useEffect(() => {
     let alive = true
@@ -60,13 +66,13 @@ export function DeliveryProductsModal({ delivery, shippingCode, onClose, onSaved
         )
       })
       .catch((e) => {
-        if (alive) setErr(e instanceof ApiError ? e.message : 'Could not load the line items.')
+        if (alive) setErr(e instanceof ApiError ? e.message : t.deliveryProducts.errLoad)
       })
       .finally(() => alive && setLoading(false))
     return () => {
       alive = false
     }
-  }, [delivery.id])
+  }, [delivery.id, t])
 
   function patch(key: string, next: Partial<Row>) {
     setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...next } : r)))
@@ -103,7 +109,7 @@ export function DeliveryProductsModal({ delivery, shippingCode, onClose, onSaved
 
   async function save() {
     if (invalid) {
-      setErr('Every product row needs a quantity greater than 0.')
+      setErr(t.deliveryProducts.qtyPositive)
       return
     }
     setBusy(true)
@@ -119,49 +125,53 @@ export function DeliveryProductsModal({ delivery, shippingCode, onClose, onSaved
       onSaved()
       onClose()
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : 'Could not save the line items.')
+      setErr(e instanceof ApiError ? e.message : t.deliveryProducts.errSave)
       setBusy(false)
     }
   }
 
   return (
     <Modal
-      title={`Items · ${delivery.customerName}`}
+      title={t.deliveryProducts.title(delivery.customerName)}
       onClose={onClose}
       footer={
         <>
           <span className="dp__total">
-            {filled.length} item{filled.length === 1 ? '' : 's'} · <strong>{money(total)}</strong>
+            {t.deliveryProducts.itemCount(filled.length)} · <strong>{money(total)}</strong>
           </span>
           <span className="dp__foot-spacer" />
           <button type="button" className="btn" onClick={onClose}>
-            Cancel
+            {t.common.cancel}
           </button>
-          <button type="button" className="btn btn--primary" onClick={save} disabled={busy || loading}>
-            {busy ? 'Saving…' : 'Save items'}
+          <button
+            type="button"
+            className="btn btn--primary"
+            onClick={save}
+            disabled={busy || loading || locked}
+          >
+            {busy ? t.common.saving : t.deliveryProducts.saveItems}
           </button>
         </>
       }
     >
       <p className="dp__ctx">
-        {shippingCode} · stop {delivery.order} · {delivery.addressLine}
+        {t.deliveryProducts.ctx(shippingCode, delivery.order, delivery.addressLine)}
       </p>
+      {locked && <p className="dp__note">{t.deliveryProducts.locked}</p>}
       {err && <p className="form-error">{err}</p>}
 
       {loading ? (
-        <p className="dp__note">Loading…</p>
+        <p className="dp__note">{t.common.loading}</p>
       ) : products.length === 0 ? (
-        <p className="form-error">
-          No products in the catalogue yet. Add some on the Products screen first.
-        </p>
+        <p className="form-error">{t.deliveryProducts.noCatalogue}</p>
       ) : (
         <>
           <div className="dp__grid" role="table">
             <div className="dp__grid-head" role="row">
-              <span>Product</span>
-              <span>Qty</span>
-              <span>Unit price</span>
-              <span>Line</span>
+              <span>{t.deliveryProducts.product}</span>
+              <span>{t.deliveryProducts.qty}</span>
+              <span>{t.deliveryProducts.unitPrice}</span>
+              <span>{t.deliveryProducts.line}</span>
               <span />
             </div>
             {rows.map((r) => {
@@ -173,9 +183,10 @@ export function DeliveryProductsModal({ delivery, shippingCode, onClose, onSaved
                   <select
                     value={r.productId}
                     onChange={(e) => pickProduct(r.key, e.target.value)}
-                    aria-label="Product"
+                    aria-label={t.deliveryProducts.product}
+                    disabled={locked}
                   >
-                    <option value="">Select…</option>
+                    <option value="">{t.deliveryProducts.selectProduct}</option>
                     {products.map((prod) => (
                       <option key={prod.id} value={prod.id}>
                         {prod.name}
@@ -189,7 +200,8 @@ export function DeliveryProductsModal({ delivery, shippingCode, onClose, onSaved
                     step="0.01"
                     value={r.quantity}
                     onChange={(e) => patch(r.key, { quantity: e.target.value })}
-                    aria-label="Quantity"
+                    aria-label={t.deliveryProducts.qty}
+                    disabled={locked}
                   />
                   <input
                     type="number"
@@ -198,14 +210,16 @@ export function DeliveryProductsModal({ delivery, shippingCode, onClose, onSaved
                     value={r.unitPrice}
                     onChange={(e) => patch(r.key, { unitPrice: e.target.value })}
                     placeholder="—"
-                    aria-label="Unit price"
+                    aria-label={t.deliveryProducts.unitPrice}
+                    disabled={locked}
                   />
                   <span className="dp__line-total">{lineTotal == null ? '—' : money(lineTotal)}</span>
                   <button
                     type="button"
                     className="dp__x"
                     onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))}
-                    aria-label="Remove row"
+                    aria-label={t.deliveryProducts.removeRow}
+                    disabled={locked}
                   >
                     &times;
                   </button>
@@ -214,21 +228,24 @@ export function DeliveryProductsModal({ delivery, shippingCode, onClose, onSaved
                       className="dp__notes"
                       value={r.notes}
                       onChange={(e) => patch(r.key, { notes: e.target.value })}
-                      placeholder="Note for this line (optional)"
-                      aria-label="Line note"
+                      placeholder={t.deliveryProducts.lineNotePlaceholder}
+                      aria-label={t.deliveryProducts.lineNotePlaceholder}
+                      disabled={locked}
                     />
                   )}
                 </div>
               )
             })}
           </div>
-          <button
-            type="button"
-            className="btn btn--link dp__add"
-            onClick={() => setRows((rs) => [...rs, blankRow()])}
-          >
-            + Add row
-          </button>
+          {!locked && (
+            <button
+              type="button"
+              className="btn btn--link dp__add"
+              onClick={() => setRows((rs) => [...rs, blankRow()])}
+            >
+              {t.deliveryProducts.addRow}
+            </button>
+          )}
         </>
       )}
     </Modal>

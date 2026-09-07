@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -79,29 +80,30 @@ func normalizeDate(raw string) (string, error) {
 }
 
 // ---------------------------------------------------------------------
-// GET /shippings?date=YYYY-MM-DD
+// GET /shippings?from=YYYY-MM-DD&to=YYYY-MM-DD   (also accepts legacy ?date=)
 // ---------------------------------------------------------------------
 
-func (r *Repository) Home(ctx context.Context, companyID, day string) (*HomePayload, error) {
-	shippings, err := r.shippingsForDay(ctx, companyID, "", day)
+func (r *Repository) Home(ctx context.Context, companyID, from, to string) (*HomePayload, error) {
+	shippings, err := r.shippingsForRange(ctx, companyID, "", from, to)
 	if err != nil {
 		return nil, err
 	}
-	summary, err := r.statusSummary(ctx, companyID, day)
+	summary, err := r.statusSummary(ctx, companyID, from, to)
 	if err != nil {
 		return nil, err
 	}
-	return &HomePayload{Date: day, Shippings: shippings, StatusSummary: summary}, nil
+	return &HomePayload{Date: from, From: from, To: to, Shippings: shippings, StatusSummary: summary}, nil
 }
 
-// DriverDay is one driver's own shippings for a date, no status summary.
+// DriverDay is one driver's own shippings for a single date, no status
+// summary. Drivers keep a one-day view.
 func (r *Repository) DriverDay(ctx context.Context, companyID, driverID, day string) ([]Shipping, error) {
-	return r.shippingsForDay(ctx, companyID, driverID, day)
+	return r.shippingsForRange(ctx, companyID, driverID, day, day)
 }
 
-// shippingsForDay lists shippings for a company on a date. A non-empty
-// driverID narrows it to that driver's shippings.
-func (r *Repository) shippingsForDay(ctx context.Context, companyID, driverID, day string) ([]Shipping, error) {
+// shippingsForRange lists shippings for a company between two dates
+// (inclusive). A non-empty driverID narrows it to that driver's shippings.
+func (r *Repository) shippingsForRange(ctx context.Context, companyID, driverID, from, to string) ([]Shipping, error) {
 	var driverArg any
 	if driverID != "" {
 		driverArg = driverID
@@ -112,11 +114,11 @@ func (r *Repository) shippingsForDay(ctx context.Context, companyID, driverID, d
 		       b.driver_user_id, u.full_name, b.notes
 		FROM delivery_batch b
 		JOIN app_user u ON u.user_id = b.driver_user_id
-		WHERE b.company_id = $1 AND b.delivery_date = $2::date
-		  AND ($3::uuid IS NULL OR b.driver_user_id = $3::uuid)
-		ORDER BY b.batch_code`
+		WHERE b.company_id = $1 AND b.delivery_date BETWEEN $2::date AND $3::date
+		  AND ($4::uuid IS NULL OR b.driver_user_id = $4::uuid)
+		ORDER BY b.delivery_date, b.batch_code`
 
-	rows, err := r.db.Query(ctx, shipQ, companyID, day, driverArg)
+	rows, err := r.db.Query(ctx, shipQ, companyID, from, to, driverArg)
 	if err != nil {
 		return nil, err
 	}
@@ -147,11 +149,11 @@ func (r *Repository) shippingsForDay(ctx context.Context, companyID, driverID, d
 	const delQ = `
 		SELECT d.delivery_batch_id,` + deliveryCols + deliveryJoins + `
 		JOIN delivery_batch b ON b.delivery_batch_id = d.delivery_batch_id
-		WHERE d.company_id = $1 AND b.delivery_date = $2::date
-		  AND ($3::uuid IS NULL OR b.driver_user_id = $3::uuid)
+		WHERE d.company_id = $1 AND b.delivery_date BETWEEN $2::date AND $3::date
+		  AND ($4::uuid IS NULL OR b.driver_user_id = $4::uuid)
 		ORDER BY d.delivery_batch_id, d.delivery_order, d.delivery_id`
 
-	drows, err := r.db.Query(ctx, delQ, companyID, day, driverArg)
+	drows, err := r.db.Query(ctx, delQ, companyID, from, to, driverArg)
 	if err != nil {
 		return nil, err
 	}
@@ -197,7 +199,7 @@ func (r *Repository) shippingsForDay(ctx context.Context, companyID, driverID, d
 	return out, nil
 }
 
-func (r *Repository) statusSummary(ctx context.Context, companyID, day string) ([]StatusCount, error) {
+func (r *Repository) statusSummary(ctx context.Context, companyID, from, to string) ([]StatusCount, error) {
 	const q = `
 		SELECT s.delivery_status_id, s.status_code, s.status_name, s.color_hex,
 		       count(d.delivery_id)
@@ -207,13 +209,13 @@ func (r *Repository) statusSummary(ctx context.Context, companyID, day string) (
 		 AND d.company_id = $1
 		 AND d.delivery_batch_id IN (
 		       SELECT delivery_batch_id FROM delivery_batch
-		       WHERE company_id = $1 AND delivery_date = $2::date
+		       WHERE company_id = $1 AND delivery_date BETWEEN $2::date AND $3::date
 		     )
 		WHERE s.is_active
 		GROUP BY s.delivery_status_id, s.status_code, s.status_name, s.color_hex, s.display_order
 		ORDER BY s.display_order`
 
-	rows, err := r.db.Query(ctx, q, companyID, day)
+	rows, err := r.db.Query(ctx, q, companyID, from, to)
 	if err != nil {
 		return nil, err
 	}
@@ -230,17 +232,61 @@ func (r *Repository) statusSummary(ctx context.Context, companyID, day string) (
 	return out, rows.Err()
 }
 
+// maxRangeDays caps a board query so a stray "from 1970" can't scan years.
+const maxRangeDays = 92
+
+// parseDateRange reads from/to (falling back to a legacy single ?date=, and
+// to the server's today when nothing is given), normalises them, swaps them
+// if they're backwards, and rejects an over-wide span.
+func parseDateRange(q url.Values) (from, to string, err error) {
+	from = strings.TrimSpace(q.Get("from"))
+	to = strings.TrimSpace(q.Get("to"))
+	if from == "" && to == "" {
+		if d := strings.TrimSpace(q.Get("date")); d != "" {
+			from, to = d, d
+		}
+	}
+	if from == "" {
+		from = time.Now().UTC().Format(dateLayout)
+	}
+	if to == "" {
+		to = from
+	}
+	if from, err = normalizeDate(from); err != nil {
+		return "", "", err
+	}
+	if to, err = normalizeDate(to); err != nil {
+		return "", "", err
+	}
+	ft, _ := time.Parse(dateLayout, from)
+	tt, _ := time.Parse(dateLayout, to)
+	if tt.Before(ft) {
+		from, to = to, from
+		ft, tt = tt, ft
+	}
+	if tt.Sub(ft) > maxRangeDays*24*time.Hour {
+		return "", "", errRangeTooWide
+	}
+	return from, to, nil
+}
+
+var errRangeTooWide = errors.New("date range is too wide")
+
 func (h *Handler) listShippings(w http.ResponseWriter, r *http.Request) {
 	cid, ok := requireCompany(w, r)
 	if !ok {
 		return
 	}
-	day, err := normalizeDate(r.URL.Query().Get("date"))
-	if err != nil {
-		httpx.WriteError(w, http.StatusBadRequest, "date must be YYYY-MM-DD")
+	from, to, err := parseDateRange(r.URL.Query())
+	if errors.Is(err, errRangeTooWide) {
+		httpx.WriteError(w, http.StatusBadRequest, "date range is too wide (max 92 days)")
 		return
 	}
-	payload, err := h.repo.Home(r.Context(), cid, day)
+	if err != nil {
+		httpx.WriteError(w, http.StatusBadRequest, "from/to must be YYYY-MM-DD")
+		return
+	}
+	payload, err := h.repo.Home(r.Context(), cid, from, to)
 	if err != nil {
 		httpx.WriteError(w, http.StatusInternalServerError, "could not load shippings")
 		return
@@ -478,6 +524,7 @@ func (r *Repository) LinkDelivery(ctx context.Context, companyID string, shippin
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
+	setAuditUser(ctx, tx)
 
 	var (
 		targetDriver string
@@ -576,26 +623,41 @@ func (h *Handler) linkDelivery(w http.ResponseWriter, r *http.Request) {
 // PATCH /shippings/{shippingID}/deliveries/order
 // ---------------------------------------------------------------------
 
-var errOrderSetMismatch = errors.New("deliveryIds must be exactly the deliveries in this shipping")
+var (
+	errOrderSetMismatch = errors.New("deliveryIds must be exactly the deliveries in this shipping")
+	errReorderLocked    = errors.New("a stop that has already started can't be moved")
+)
+
+type reorderStop struct {
+	order    int
+	editable bool
+}
 
 func (r *Repository) Reorder(ctx context.Context, companyID string, shippingID int64, ids []int64) ([]Delivery, error) {
 	if _, err := r.loadShipping(ctx, companyID, shippingID); err != nil {
 		return nil, err
 	}
 
-	rows, err := r.db.Query(ctx,
-		`SELECT delivery_id FROM delivery WHERE delivery_batch_id = $1`, shippingID)
+	rows, err := r.db.Query(ctx, `
+		SELECT d.delivery_id, d.delivery_order, s.status_code
+		FROM delivery d
+		JOIN delivery_status s ON s.delivery_status_id = d.delivery_status_id
+		WHERE d.delivery_batch_id = $1`, shippingID)
 	if err != nil {
 		return nil, err
 	}
-	current := map[int64]bool{}
+	current := map[int64]reorderStop{}
 	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
+		var (
+			id   int64
+			ord  int
+			code string
+		)
+		if err := rows.Scan(&id, &ord, &code); err != nil {
 			rows.Close()
 			return nil, err
 		}
-		current[id] = true
+		current[id] = reorderStop{order: ord, editable: isEditableStatus(code)}
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
@@ -607,10 +669,19 @@ func (r *Repository) Reorder(ctx context.Context, companyID string, shippingID i
 	}
 	seen := map[int64]bool{}
 	for _, id := range ids {
-		if !current[id] || seen[id] {
+		if _, ok := current[id]; !ok || seen[id] {
 			return nil, errOrderSetMismatch
 		}
 		seen[id] = true
+	}
+
+	// A stop that isn't still "pending" (PENDING/ASSIGNED) must keep its
+	// exact position — the pending stops can only be shuffled around it.
+	for pos, id := range ids {
+		cur := current[id]
+		if !cur.editable && cur.order != pos+1 {
+			return nil, errReorderLocked
+		}
 	}
 
 	tx, err := r.db.Begin(ctx)
@@ -618,6 +689,7 @@ func (r *Repository) Reorder(ctx context.Context, companyID string, shippingID i
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
+	setAuditUser(ctx, tx)
 
 	for pos, id := range ids {
 		if _, err := tx.Exec(ctx,
@@ -682,6 +754,8 @@ func (h *Handler) reorderDeliveries(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusNotFound, "shipping not found")
 	case errors.Is(err, errOrderSetMismatch):
 		httpx.WriteError(w, http.StatusUnprocessableEntity, errOrderSetMismatch.Error())
+	case errors.Is(err, errReorderLocked):
+		httpx.WriteError(w, http.StatusConflict, errReorderLocked.Error())
 	case err != nil:
 		httpx.WriteError(w, http.StatusInternalServerError, "could not reorder")
 	default:

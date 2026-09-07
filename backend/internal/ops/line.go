@@ -8,10 +8,15 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/PatrialEduardo/delivery-management-system/backend/internal/httpx"
 )
 
-var errBadLine = errors.New("each line needs a product and a quantity greater than 0")
+var (
+	errBadLine        = errors.New("each line needs a product and a quantity greater than 0")
+	errDeliveryLocked = errors.New("this delivery has started — its items can no longer be changed")
+)
 
 const lineCols = `
 	dp.delivery_product_id, dp.product_id, p.product_name, p.sku, p.unit,
@@ -138,15 +143,23 @@ func (r *Repository) linesFor(ctx context.Context, companyID string, deliveryID 
 
 // SetDeliveryLines replaces a delivery's line items wholesale.
 func (r *Repository) SetDeliveryLines(ctx context.Context, companyID string, deliveryID int64, in []lineInput) ([]DeliveryLine, error) {
-	// Delivery must exist in the company.
-	var exists bool
-	if err := r.db.QueryRow(ctx,
-		`SELECT EXISTS (SELECT 1 FROM delivery WHERE delivery_id = $1 AND company_id = $2)`,
-		deliveryID, companyID).Scan(&exists); err != nil {
+	// Delivery must exist in the company, and must still be pending — once a
+	// driver has started (or finished) a stop its line items are frozen.
+	var statusCode string
+	err := r.db.QueryRow(ctx, `
+		SELECT s.status_code
+		FROM delivery d
+		JOIN delivery_status s ON s.delivery_status_id = d.delivery_status_id
+		WHERE d.delivery_id = $1 AND d.company_id = $2`,
+		deliveryID, companyID).Scan(&statusCode)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, errNotFound
+	}
+	if err != nil {
 		return nil, err
 	}
-	if !exists {
-		return nil, errNotFound
+	if !isEditableStatus(statusCode) {
+		return nil, errDeliveryLocked
 	}
 
 	clean := make([]lineInput, 0, len(in))
@@ -178,6 +191,7 @@ func (r *Repository) SetDeliveryLines(ctx context.Context, companyID string, del
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
+	setAuditUser(ctx, tx)
 
 	if _, err := tx.Exec(ctx,
 		`DELETE FROM delivery_product WHERE delivery_id = $1`, deliveryID); err != nil {
@@ -245,6 +259,8 @@ func (h *Handler) putDeliveryLines(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case errors.Is(err, errNotFound):
 		httpx.WriteError(w, http.StatusNotFound, "delivery or product not found")
+	case errors.Is(err, errDeliveryLocked):
+		httpx.WriteError(w, http.StatusConflict, errDeliveryLocked.Error())
 	case errors.Is(err, errBadLine):
 		httpx.WriteError(w, http.StatusUnprocessableEntity, errBadLine.Error())
 	case err != nil:

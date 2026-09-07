@@ -1,10 +1,13 @@
 import { useState, type FormEvent } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { useT } from '../context/LanguageContext'
 import { ThemeToggle } from '../components/ThemeToggle'
+import { LanguageToggle } from '../components/LanguageToggle'
 import './LoginPage.css'
 
 export function LoginPage() {
   const { login, loading, error } = useAuth()
+  const t = useT()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -21,17 +24,13 @@ export function LoginPage() {
 
   return (
     <div className="login">
+      <LanguageToggle className="lang-toggle--floating" />
       <ThemeToggle className="theme-toggle--floating" />
       <section className="login__brand">
         <div className="login__brand-inner">
           <span className="login__mark">DMS</span>
-          <h1 className="login__headline">
-            Every delivery, tracked from batch to doorstep.
-          </h1>
-          <p className="login__pitch">
-            No more chasing updates through a WhatsApp thread. One place to
-            assign, follow, and close out every delivery your drivers make today.
-          </p>
+          <h1 className="login__headline">{t.login.headline}</h1>
+          <p className="login__pitch">{t.login.pitch}</p>
           <svg
             className="login__route"
             viewBox="0 0 240 120"
@@ -54,8 +53,8 @@ export function LoginPage() {
 
       <main className="login__panel">
         <form className="login__form" onSubmit={handleSubmit} noValidate>
-          <h2 className="login__title">Sign in</h2>
-          <p className="login__subtitle">Use your store account to continue.</p>
+          <h2 className="login__title">{t.login.title}</h2>
+          <p className="login__subtitle">{t.login.subtitle}</p>
 
           {error && (
             <p className="login__error" role="alert">
@@ -64,7 +63,7 @@ export function LoginPage() {
           )}
 
           <div className="login__field">
-            <label htmlFor="email">Email</label>
+            <label htmlFor="email">{t.login.email}</label>
             <input
               id="email"
               name="email"
@@ -83,14 +82,14 @@ export function LoginPage() {
 
           <div className="login__field">
             <div className="login__label-row">
-              <label htmlFor="password">Password</label>
+              <label htmlFor="password">{t.login.password}</label>
               <button
                 type="button"
                 className="login__reveal"
                 onClick={() => setShowPassword((s) => !s)}
                 aria-pressed={showPassword}
               >
-                {showPassword ? 'Hide' : 'Show'}
+                {showPassword ? t.login.hide : t.login.show}
               </button>
             </div>
             <input
@@ -106,7 +105,7 @@ export function LoginPage() {
           </div>
 
           <button type="submit" className="login__submit" disabled={loading}>
-            {loading ? 'Signing in…' : 'Sign in'}
+            {loading ? t.login.signingIn : t.login.signIn}
           </button>
 
           <button
@@ -115,14 +114,9 @@ export function LoginPage() {
             onClick={() => setShowResetHelp((s) => !s)}
             aria-expanded={showResetHelp}
           >
-            Forgot your password?
+            {t.login.forgot}
           </button>
-          {showResetHelp && (
-            <p className="login__reset-help">
-              Self-service reset isn&rsquo;t available yet. Ask an administrator
-              to set a new password for your account.
-            </p>
-          )}
+          {showResetHelp && <p className="login__reset-help">{t.login.resetHelp}</p>}
         </form>
       </main>
     </div>

@@ -169,6 +169,15 @@
   border-color: var(--accent-hover);
 }
 
+.btn--danger {
+  background: var(--danger-surface);
+  border-color: var(--danger-border);
+  color: var(--danger);
+}
+.btn--danger:hover:not(:disabled) {
+  border-color: var(--danger);
+}
+
 .btn--link {
   border: none;
   background: none;

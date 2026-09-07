@@ -241,6 +241,7 @@ func (r *Repository) StartDelivery(ctx context.Context, companyID, driverID stri
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
+	setAuditUser(ctx, tx)
 
 	// started_at is set once; re-tapping Start just keeps the first time.
 	if _, err := tx.Exec(ctx, `
@@ -327,6 +328,7 @@ func (r *Repository) FinishDelivery(ctx context.Context, companyID, driverID str
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
+	setAuditUser(ctx, tx)
 
 	if _, err := tx.Exec(ctx, `
 		UPDATE delivery SET

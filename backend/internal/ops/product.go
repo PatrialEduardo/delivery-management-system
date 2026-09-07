@@ -11,11 +11,27 @@ import (
 	"github.com/PatrialEduardo/delivery-management-system/backend/internal/httpx"
 )
 
-const productCols = `product_id, product_name, sku, unit, price::float8, is_active`
+var (
+	// errProductFieldsLocked: Name/SKU/Unit are frozen once the product has
+	// been used on a delivery line.
+	errProductFieldsLocked = errors.New("this product already has line items — its name, SKU and unit can't be changed")
+	// errProductHasActivity: a used product can be deactivated but not deleted.
+	errProductHasActivity = errors.New("this product already has line items — deactivate it instead of deleting")
+)
+
+// productCols also computes has_activity: does any delivery_product row in
+// this company reference the product? It drives the field/delete locks.
+const productCols = `
+	product_id, product_name, sku, unit, price::float8, is_active,
+	EXISTS (
+		SELECT 1 FROM delivery_product dp
+		JOIN delivery d ON d.delivery_id = dp.delivery_id
+		WHERE dp.product_id = product.product_id AND d.company_id = product.company_id
+	) AS has_activity`
 
 func scanProduct(s scanner) (Product, error) {
 	var p Product
-	err := s.Scan(&p.ID, &p.Name, &p.SKU, &p.Unit, &p.Price, &p.IsActive)
+	err := s.Scan(&p.ID, &p.Name, &p.SKU, &p.Unit, &p.Price, &p.IsActive, &p.HasActivity)
 	return p, err
 }
 
@@ -58,21 +74,46 @@ func (r *Repository) productByID(ctx context.Context, companyID, id string) (*Pr
 }
 
 func (r *Repository) CreateProduct(ctx context.Context, companyID string, in createProductReq) (*Product, error) {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	setAuditUser(ctx, tx)
+
 	var id string
-	err := r.db.QueryRow(ctx, `
+	if err := tx.QueryRow(ctx, `
 		INSERT INTO product (company_id, product_name, sku, unit, price)
 		VALUES ($1, $2, $3, $4, $5)
 		RETURNING product_id`,
 		companyID, strings.TrimSpace(in.Name), trimPtr(in.SKU), trimPtr(in.Unit), in.Price,
-	).Scan(&id)
-	if err != nil {
+	).Scan(&id); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
 	return r.productByID(ctx, companyID, id)
 }
 
 func (r *Repository) UpdateProduct(ctx context.Context, companyID, id string, in updateProductReq) (*Product, error) {
-	tag, err := r.db.Exec(ctx, `
+	cur, err := r.productByID(ctx, companyID, id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Once the product has been sold on a delivery, its identifying fields
+	// are frozen — only price and the active flag stay editable.
+	if cur.HasActivity {
+		name := strings.TrimSpace(in.Name)
+		if name != cur.Name ||
+			!eqStrPtr(trimPtr(in.SKU), cur.SKU) ||
+			!eqStrPtr(trimPtr(in.Unit), cur.Unit) {
+			return nil, errProductFieldsLocked
+		}
+	}
+
+	tag, err := r.auditExec(ctx, `
 		UPDATE product SET
 		  product_name = $3, sku = $4, unit = $5, price = $6, is_active = $7,
 		  updated_at = now()
@@ -87,12 +128,18 @@ func (r *Repository) UpdateProduct(ctx context.Context, companyID, id string, in
 	return r.productByID(ctx, companyID, id)
 }
 
-// DeleteProduct is a soft delete — product rows are referenced by
-// delivery_product, so they are deactivated, not removed.
+// DeleteProduct removes a product outright when it has never been used on a
+// delivery; otherwise it refuses and the caller should deactivate instead.
 func (r *Repository) DeleteProduct(ctx context.Context, companyID, id string) error {
-	tag, err := r.db.Exec(ctx,
-		`UPDATE product SET is_active = false, updated_at = now()
-		 WHERE product_id = $1 AND company_id = $2`, id, companyID)
+	cur, err := r.productByID(ctx, companyID, id)
+	if err != nil {
+		return err
+	}
+	if cur.HasActivity {
+		return errProductHasActivity
+	}
+	tag, err := r.auditExec(ctx,
+		`DELETE FROM product WHERE product_id = $1 AND company_id = $2`, id, companyID)
 	if err != nil {
 		return err
 	}
@@ -181,6 +228,8 @@ func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case errors.Is(err, errNotFound):
 		httpx.WriteError(w, http.StatusNotFound, "product not found")
+	case errors.Is(err, errProductFieldsLocked):
+		httpx.WriteError(w, http.StatusConflict, errProductFieldsLocked.Error())
 	case err != nil:
 		httpx.WriteError(w, http.StatusInternalServerError, "could not update product")
 	default:
@@ -197,6 +246,8 @@ func (h *Handler) deleteProduct(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case errors.Is(err, errNotFound):
 		httpx.WriteError(w, http.StatusNotFound, "product not found")
+	case errors.Is(err, errProductHasActivity):
+		httpx.WriteError(w, http.StatusConflict, errProductHasActivity.Error())
 	case err != nil:
 		httpx.WriteError(w, http.StatusInternalServerError, "could not delete product")
 	default:

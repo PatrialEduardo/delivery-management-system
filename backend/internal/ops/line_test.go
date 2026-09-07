@@ -109,7 +109,7 @@ func TestSetDeliveryLines_ShippingRollup(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	payload, err := f.repo.Home(ctx, f.companyID, day)
+	payload, err := f.repo.Home(ctx, f.companyID, day, day)
 	if err != nil {
 		t.Fatalf("home: %v", err)
 	}
