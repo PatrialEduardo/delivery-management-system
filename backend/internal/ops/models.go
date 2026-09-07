@@ -1,0 +1,250 @@
+package ops
+
+// Wire types for the homepage. IDs that are UUIDs in the DB stay strings
+// here; delivery / shipping IDs are BIGSERIAL and stay int64.
+
+type DeliveryStatus struct {
+	ID               string  `json:"id"`
+	Code             string  `json:"code"`
+	Name             string  `json:"name"`
+	Type             string  `json:"type"` // PROCESS | RESULT
+	ColorHex         string  `json:"colorHex"`
+	Icon             *string `json:"icon"`
+	DisplayOrder     int     `json:"displayOrder"`
+	FinishesDelivery bool    `json:"finishesDelivery"`
+	AllowsReschedule bool    `json:"allowsReschedule"`
+}
+
+type Driver struct {
+	ID       string `json:"id"`
+	FullName string `json:"fullName"`
+	Email    string `json:"email"`
+}
+
+// Product is a catalogue item that can be added as a line on a delivery.
+type Product struct {
+	ID       string   `json:"id"`
+	Name     string   `json:"name"`
+	SKU      *string  `json:"sku"`
+	Unit     *string  `json:"unit"`
+	Price    *float64 `json:"price"`
+	IsActive bool     `json:"isActive"`
+	// HasActivity is true when at least one delivery line references this
+	// product. While true, Name/SKU/Unit are frozen and the product can only
+	// be deactivated, not deleted.
+	HasActivity bool `json:"hasActivity"`
+}
+
+type createProductReq struct {
+	Name  string   `json:"name"`
+	SKU   *string  `json:"sku"`
+	Unit  *string  `json:"unit"`
+	Price *float64 `json:"price"`
+}
+
+// updateProductReq is a full replace of the editable fields — the product
+// form always sends every field.
+type updateProductReq struct {
+	Name     string   `json:"name"`
+	SKU      *string  `json:"sku"`
+	Unit     *string  `json:"unit"`
+	Price    *float64 `json:"price"`
+	IsActive bool     `json:"isActive"`
+}
+
+type Address struct {
+	ID         string  `json:"id"`
+	ZipCode    *string `json:"zipCode"`
+	Street     string  `json:"street"`
+	Number     *string `json:"number"`
+	District   *string `json:"district"`
+	City       string  `json:"city"`
+	State      string  `json:"state"`
+	Complement *string `json:"complement"`
+	Line       string  `json:"line"` // pre-composed single-line form for display
+}
+
+type Customer struct {
+	ID        string    `json:"id"`
+	FullName  string    `json:"fullName"`
+	Phone     *string   `json:"phone"`
+	Notes     *string   `json:"notes"`
+	IsActive  bool      `json:"isActive"`
+	Addresses []Address `json:"addresses"`
+	// HasActivity is true when the customer has at least one delivery. While
+	// true, FullName is frozen and the customer can only be deactivated.
+	HasActivity bool `json:"hasActivity"`
+	// Stats is filled only for the management screen (?stats=1); nil otherwise.
+	Stats *CustomerStats `json:"stats"`
+}
+
+// CustomerStats is the "Excel report" roll-up for one customer, across every
+// delivery their company has ever recorded for them.
+type CustomerStats struct {
+	Total            int     `json:"total"`
+	Delivered        int     `json:"delivered"`
+	Failed           int     `json:"failed"`
+	Absent           int     `json:"absent"`
+	InProgress       int     `json:"inProgress"`
+	Pending          int     `json:"pending"`
+	SuccessRate      float64 `json:"successRate"` // delivered / finished, as a percentage (1 dp)
+	LastDeliveryDate *string `json:"lastDeliveryDate"`
+	DeliveredValue   float64 `json:"deliveredValue"` // Σ qty×unitPrice over DELIVERED stops
+}
+
+type updateCustomerReq struct {
+	FullName string  `json:"fullName"`
+	Phone    *string `json:"phone"`
+	Notes    *string `json:"notes"`
+	IsActive bool    `json:"isActive"`
+}
+
+// Delivery is one stop inside a shipping.
+type Delivery struct {
+	ID            int64    `json:"id"`
+	Order         int      `json:"order"`
+	CustomerID    string   `json:"customerId"`
+	CustomerName  string   `json:"customerName"`
+	CustomerPhone *string  `json:"customerPhone"`
+	AddressID     string   `json:"addressId"`
+	AddressLine   string   `json:"addressLine"`
+	Lat           *float64 `json:"lat"`
+	Lng           *float64 `json:"lng"`
+	StatusID      string   `json:"statusId"`
+	StatusCode    string   `json:"statusCode"`
+	StatusName    string   `json:"statusName"`
+	StatusColor   string   `json:"statusColor"`
+	AttemptNumber int      `json:"attemptNumber"`
+	Notes         *string  `json:"notes"`
+	StartedAt     *string  `json:"startedAt"`  // RFC3339, nil until started
+	FinishedAt    *string  `json:"finishedAt"` // RFC3339, nil until finished
+
+	// Line items. Always present (possibly empty). ItemCount is the number
+	// of line rows; ItemTotal is sum(quantity * unitPrice) over priced lines.
+	Products  []DeliveryLine `json:"products"`
+	ItemCount int            `json:"itemCount"`
+	ItemTotal float64        `json:"itemTotal"`
+}
+
+// DeliveryLine is one product row on a delivery. UnitPrice is captured when
+// the line is written, not read live from the catalogue.
+type DeliveryLine struct {
+	ID          int64    `json:"id"`
+	ProductID   string   `json:"productId"`
+	ProductName string   `json:"productName"`
+	SKU         *string  `json:"sku"`
+	Unit        *string  `json:"unit"`
+	Quantity    float64  `json:"quantity"`
+	UnitPrice   *float64 `json:"unitPrice"`
+	Notes       *string  `json:"notes"`
+}
+
+type lineInput struct {
+	ProductID string   `json:"productId"`
+	Quantity  float64  `json:"quantity"`
+	UnitPrice *float64 `json:"unitPrice"`
+	Notes     *string  `json:"notes"`
+}
+
+// setLinesReq is a full replace of a delivery's line items.
+type setLinesReq struct {
+	Lines []lineInput `json:"lines"`
+}
+
+// ActiveDelivery points a driver back to the stop they left in progress.
+type ActiveDelivery struct {
+	ShippingID int64 `json:"shippingId"`
+	DeliveryID int64 `json:"deliveryId"`
+}
+
+// ---- driver request bodies ----
+
+type geoBody struct {
+	Lat *float64 `json:"lat"`
+	Lng *float64 `json:"lng"`
+}
+
+type finishReq struct {
+	Outcome string   `json:"outcome"` // COMPLETE | ABSENT | TROUBLE
+	Note    string   `json:"note"`
+	Lat     *float64 `json:"lat"`
+	Lng     *float64 `json:"lng"`
+}
+
+type Shipping struct {
+	ID           int64      `json:"id"`
+	BatchCode    string     `json:"batchCode"`
+	DeliveryDate string     `json:"deliveryDate"` // YYYY-MM-DD
+	DriverUserID string     `json:"driverUserId"`
+	DriverName   string     `json:"driverName"`
+	Notes        *string    `json:"notes"`
+	Deliveries   []Delivery `json:"deliveries"`
+
+	// Roll-up across this shipping's deliveries.
+	ItemCount int     `json:"itemCount"`
+	ItemTotal float64 `json:"itemTotal"`
+}
+
+type StatusCount struct {
+	StatusID string `json:"statusId"`
+	Code     string `json:"code"`
+	Name     string `json:"name"`
+	ColorHex string `json:"colorHex"`
+	Count    int    `json:"count"`
+}
+
+// HomePayload is the whole GET /shippings?from=&to= response. Date is kept
+// (equal to From) so older clients that read `date` don't break.
+type HomePayload struct {
+	Date          string        `json:"date"`
+	From          string        `json:"from"`
+	To            string        `json:"to"`
+	Shippings     []Shipping    `json:"shippings"`
+	StatusSummary []StatusCount `json:"statusSummary"`
+}
+
+// LinkableDelivery is a row in the "link an existing delivery" picker.
+type LinkableDelivery struct {
+	ID           int64  `json:"id"`
+	CustomerName string `json:"customerName"`
+	AddressLine  string `json:"addressLine"`
+	StatusCode   string `json:"statusCode"`
+	StatusName   string `json:"statusName"`
+	StatusColor  string `json:"statusColor"`
+	ShippingID   int64  `json:"shippingId"`
+	BatchCode    string `json:"batchCode"`
+}
+
+// ---- request bodies ----
+
+type createCustomerReq struct {
+	FullName string        `json:"fullName"`
+	Phone    *string       `json:"phone"`
+	Address  *addressInput `json:"address"`
+}
+
+type addressInput struct {
+	ZipCode    *string `json:"zipCode"`
+	Street     string  `json:"street"`
+	Number     *string `json:"number"`
+	District   *string `json:"district"`
+	City       string  `json:"city"`
+	State      string  `json:"state"`
+	Complement *string `json:"complement"`
+}
+
+type createShippingReq struct {
+	DriverUserID string  `json:"driverUserId"`
+	DeliveryDate string  `json:"deliveryDate"` // YYYY-MM-DD
+	Notes        *string `json:"notes"`
+}
+
+type quickDeliveryReq struct {
+	CustomerID string  `json:"customerId"`
+	AddressID  string  `json:"addressId"`
+	Notes      *string `json:"notes"`
+}
+
+type reorderReq struct {
+	DeliveryIDs []int64 `json:"deliveryIds"`
+}

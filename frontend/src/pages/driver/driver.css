@@ -1,0 +1,409 @@
+/* Driver web-app — phone-first. One column, big tap targets, a fixed
+   prev/next bar on the stop screen. Uses the shared tokens from index.css. */
+
+.drv {
+  flex: 1;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+}
+
+.drv__bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.9rem;
+  background: var(--panel-raised);
+  border-bottom: 1px solid var(--hairline-light);
+}
+
+.drv__title {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  font-size: 0.98rem;
+  color: var(--text-on-light);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drv__back {
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 0.92rem;
+  color: var(--accent-press);
+  cursor: pointer;
+  padding: 0.3rem 0.2rem;
+}
+
+.drv__bar-spacer {
+  width: 1rem;
+}
+
+.drv__date {
+  font: inherit;
+  font-size: 0.88rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--hairline-light);
+  border-radius: var(--radius);
+  background: var(--panel-raised);
+  color: var(--text-on-light);
+}
+
+.drv__logout {
+  border: 1px solid var(--hairline-light);
+  background: var(--panel-raised);
+  border-radius: var(--radius);
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 0.4rem 0.6rem;
+  cursor: pointer;
+}
+
+.drv__main {
+  flex: 1;
+  padding: 1rem 0.9rem 1.5rem;
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+}
+.drv__main--stop {
+  padding-bottom: 5.5rem; /* clear the fixed prev/next bar */
+}
+
+.drv__note {
+  color: var(--muted-on-light);
+  font-size: 0.9rem;
+}
+.drv__error {
+  background: var(--danger-surface);
+  border: 1px solid var(--danger-border);
+  color: var(--danger);
+  font-size: 0.86rem;
+  border-radius: var(--radius);
+  padding: 0.55rem 0.7rem;
+  margin: 0 0 0.9rem;
+}
+
+/* ---- shipping list ---- */
+.drv-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.9rem;
+  margin-bottom: 0.7rem;
+  background: var(--panel-raised);
+  border: 1px solid var(--hairline-light);
+  border-radius: 12px;
+  cursor: pointer;
+  font: inherit;
+}
+.drv-card__code {
+  font-weight: 700;
+  color: var(--text-on-light);
+}
+.drv-card__meta {
+  font-size: 0.85rem;
+  color: var(--muted-on-light);
+}
+.drv-card__notes {
+  font-size: 0.8rem;
+  color: var(--muted-on-light);
+  margin-top: 0.2rem;
+}
+
+/* ---- one shipping ---- */
+.drv-sh__meta {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted-on-light);
+}
+.drv-sh__notes {
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+  color: var(--muted-on-light);
+}
+.drv-sh__switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.9rem 0 0.4rem;
+}
+.drv-chip {
+  border: 1px solid var(--hairline-light);
+  background: var(--panel-raised);
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+}
+
+.drv-stops {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+}
+.drv-stops li {
+  margin-bottom: 0.55rem;
+}
+
+.drv-stop-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.7rem 0.8rem;
+  background: var(--panel-raised);
+  border: 1px solid var(--hairline-light);
+  border-left: 4px solid var(--hairline-light);
+  border-radius: 10px;
+  cursor: pointer;
+  font: inherit;
+}
+.drv-stop-row--active {
+  border-left-color: var(--accent);
+}
+.drv-stop-row--done {
+  border-left-color: #16a34a;
+  opacity: 0.72;
+}
+.drv-stop-row__num {
+  width: 1.6rem;
+  height: 1.6rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--panel);
+  border: 1px solid var(--hairline-light);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--muted-on-light);
+}
+.drv-stop-row__body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.drv-stop-row__name {
+  font-weight: 500;
+  color: var(--text-on-light);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.drv-stop-row__addr {
+  font-size: 0.78rem;
+  color: var(--muted-on-light);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- stop detail ---- */
+.drv-stop__card {
+  background: var(--panel-raised);
+  border: 1px solid var(--hairline-light);
+  border-radius: 14px;
+  padding: 1.1rem;
+}
+.drv-stop__name {
+  margin: 0.6rem 0 0.2rem;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--text-on-light);
+}
+.drv-stop__addr {
+  margin: 0;
+  color: var(--muted-on-light);
+  font-size: 0.95rem;
+}
+.drv-stop__attempt {
+  margin: 0.4rem 0 0;
+  font-size: 0.8rem;
+  color: var(--danger);
+}
+.drv-stop__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.9rem;
+}
+
+.drv-stop__ops {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.drv-stop__outcomes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.drv-stop__result {
+  margin-top: 1rem;
+  background: var(--panel-raised);
+  border: 1px solid var(--hairline-light);
+  border-radius: 12px;
+  padding: 0.9rem 1rem;
+}
+.drv-stop__result-line {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--text-on-light);
+}
+.drv-stop__result-note {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  color: var(--muted-on-light);
+  white-space: pre-wrap;
+}
+
+/* ---- trouble form ---- */
+.drv-trouble {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.drv-trouble label {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text-on-light);
+}
+.drv-trouble textarea {
+  font: inherit;
+  font-size: 1rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--hairline-light);
+  border-radius: var(--radius);
+  resize: vertical;
+}
+.drv-trouble textarea:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.22);
+}
+.drv-trouble__count {
+  align-self: flex-end;
+  font-size: 0.78rem;
+  color: var(--muted-on-light);
+}
+.drv-trouble__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+.drv-trouble__actions .drv-btn {
+  flex: 1;
+}
+
+/* ---- buttons ---- */
+.drv-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: 0.6rem 1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--hairline-light);
+  background: var(--panel-raised);
+  color: var(--text-on-light);
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.drv-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.drv-btn--big {
+  width: 100%;
+  min-height: 3.1rem;
+  font-size: 1rem;
+}
+.drv-btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #14171c;
+}
+.drv-btn--ok {
+  background: #16a34a;
+  border-color: #16a34a;
+  color: #fff;
+}
+.drv-btn--warn {
+  background: #b45309;
+  border-color: #b45309;
+  color: #fff;
+}
+.drv-btn--danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+.drv-btn--route {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #fff;
+}
+.drv-btn--wa {
+  background: #25d366;
+  border-color: #25d366;
+  color: #06331b;
+}
+.drv-btn--call {
+  background: var(--panel-raised);
+}
+
+/* ---- fixed prev/next ---- */
+.drv-stop__nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.6rem 0.9rem calc(0.6rem + env(safe-area-inset-bottom, 0px));
+  background: var(--panel-raised);
+  border-top: 1px solid var(--hairline-light);
+}
+.drv-stop__nav .drv-btn {
+  flex: 1;
+}
+
+/* ---- local status badge (driver pages don't load ui.css) ---- */
+.status-badge {
+  --c: var(--muted-on-light);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  color: var(--c);
+  background: color-mix(in srgb, var(--c) 12%, transparent);
+}
+.status-badge::before {
+  content: '';
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--c);
+}

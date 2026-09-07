@@ -24,15 +24,16 @@ func NewRepository(db *pgxpool.Pool) *Repository {
 // gains a company selector step.
 func (r *Repository) GetByEmail(ctx context.Context, email string) (*User, error) {
 	const q = `
-		SELECT user_id, company_id, role_id, full_name, email,
-		       password_hash, is_active, inactivated_at
-		FROM app_user
-		WHERE email = $1
+		SELECT u.user_id, u.company_id, u.role_id, r.role_name, u.full_name,
+		       u.email, u.password_hash, u.is_active, u.inactivated_at
+		FROM app_user u
+		JOIN role r ON r.role_id = u.role_id
+		WHERE u.email = $1
 	`
 
 	var u User
 	err := r.db.QueryRow(ctx, q, email).Scan(
-		&u.UserID, &u.CompanyID, &u.RoleID, &u.FullName, &u.Email,
+		&u.UserID, &u.CompanyID, &u.RoleID, &u.RoleName, &u.FullName, &u.Email,
 		&u.PasswordHash, &u.IsActive, &u.InactivatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {

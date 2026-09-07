@@ -38,7 +38,7 @@ services:
     env_file: .env
     environment:
       PORT: "8080"
-      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_DB}?sslmode=require&channel_binding=require
     ports:
       - "${BACKEND_PORT}:8080"
     depends_on:
@@ -50,6 +50,12 @@ services:
   frontend:
     build: ./frontend
     env_file: .env
+    # Live-reload during dev: the source is bind-mounted so edits show up
+    # without an image rebuild. The anonymous volume keeps the image's
+    # Linux node_modules from being shadowed by the host directory.
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
     ports:
       - "${FRONTEND_PORT}:5173"
     depends_on:

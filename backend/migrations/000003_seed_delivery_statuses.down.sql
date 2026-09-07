@@ -1,0 +1,3 @@
+DELETE FROM delivery_status
+WHERE status_code IN
+  ('PENDING', 'ASSIGNED', 'IN_TRANSIT', 'DELIVERED', 'FAILED', 'RESCHEDULED');

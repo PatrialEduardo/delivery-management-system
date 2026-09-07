@@ -1,0 +1,61 @@
+.lang-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--hairline-light);
+  border-radius: 999px;
+  background: var(--panel-raised);
+  flex-shrink: 0;
+}
+
+.lang-toggle__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.55rem;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  cursor: pointer;
+  opacity: 0.4;
+  transition:
+    opacity 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.lang-toggle__btn:hover {
+  opacity: 0.75;
+}
+
+.lang-toggle__btn--on {
+  opacity: 1;
+  background: var(--panel);
+  box-shadow: 0 0 0 1px var(--hairline-light);
+}
+
+.lang-toggle__btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.lang-toggle .flag {
+  display: block;
+  border-radius: 2px;
+}
+
+/* Floating variant — login page, sits left of the theme toggle. */
+.lang-toggle--floating {
+  position: fixed;
+  top: 0.9rem;
+  right: 3.3rem;
+  z-index: 40;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lang-toggle__btn {
+    transition: none;
+  }
+}

@@ -20,6 +20,12 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     },
   })
 
+  // Sliding session: the API hands back a freshly-minted token on every
+  // authenticated response. Swap it in so 30 min of *inactivity* — not
+  // 30 min since login — is what logs the user out.
+  const rolled = res.headers.get('X-Access-Token')
+  if (rolled) localStorage.setItem('dms_access_token', rolled)
+
   const data = await res.json().catch(() => null)
 
   if (!res.ok) {
@@ -36,7 +42,199 @@ export interface LoginResponse {
     userId: string
     fullName: string
     email: string
+    role: string
   }
+}
+
+export interface ActiveDelivery {
+  shippingId: number
+  deliveryId: number
+}
+
+export interface DeliveryStatus {
+  id: string
+  code: string
+  name: string
+  type: 'PROCESS' | 'RESULT'
+  colorHex: string
+  icon: string | null
+  displayOrder: number
+  finishesDelivery: boolean
+  allowsReschedule: boolean
+}
+
+export interface Driver {
+  id: string
+  fullName: string
+  email: string
+}
+
+export interface Product {
+  id: string
+  name: string
+  sku: string | null
+  unit: string | null
+  price: number | null
+  isActive: boolean
+  /** true once the product is on a delivery line — name/SKU/unit freeze, delete becomes deactivate. */
+  hasActivity: boolean
+}
+
+export interface ProductInput {
+  name: string
+  sku?: string | null
+  unit?: string | null
+  price?: number | null
+  isActive?: boolean
+}
+
+export interface Address {
+  id: string
+  zipCode: string | null
+  street: string
+  number: string | null
+  district: string | null
+  city: string
+  state: string
+  complement: string | null
+  line: string
+}
+
+export interface CustomerStats {
+  total: number
+  delivered: number
+  failed: number
+  absent: number
+  inProgress: number
+  pending: number
+  successRate: number
+  lastDeliveryDate: string | null
+  deliveredValue: number
+}
+
+export interface Customer {
+  id: string
+  fullName: string
+  phone: string | null
+  notes: string | null
+  isActive: boolean
+  addresses: Address[]
+  /** true once the customer has any delivery — name freezes, delete becomes deactivate. */
+  hasActivity: boolean
+  /** only present when the list was requested with { stats: true }. */
+  stats: CustomerStats | null
+}
+
+export interface CustomerInput {
+  fullName: string
+  phone?: string | null
+  notes?: string | null
+  isActive?: boolean
+}
+
+export interface DeliveryLine {
+  id: number
+  productId: string
+  productName: string
+  sku: string | null
+  unit: string | null
+  quantity: number
+  unitPrice: number | null
+  notes: string | null
+}
+
+export interface LineInput {
+  productId: string
+  quantity: number
+  unitPrice?: number | null
+  notes?: string | null
+}
+
+export interface Delivery {
+  id: number
+  order: number
+  customerId: string
+  customerName: string
+  customerPhone: string | null
+  addressId: string
+  addressLine: string
+  lat: number | null
+  lng: number | null
+  statusId: string
+  statusCode: string
+  statusName: string
+  statusColor: string
+  attemptNumber: number
+  notes: string | null
+  startedAt: string | null
+  finishedAt: string | null
+  products: DeliveryLine[]
+  itemCount: number
+  itemTotal: number
+}
+
+export interface Shipping {
+  id: number
+  batchCode: string
+  deliveryDate: string
+  driverUserId: string
+  driverName: string
+  notes: string | null
+  deliveries: Delivery[]
+  itemCount: number
+  itemTotal: number
+}
+
+export interface LinesResponse {
+  lines: DeliveryLine[]
+  itemCount: number
+  itemTotal: number
+}
+
+export interface StatusCount {
+  statusId: string
+  code: string
+  name: string
+  colorHex: string
+  count: number
+}
+
+export interface HomePayload {
+  date: string
+  from: string
+  to: string
+  shippings: Shipping[]
+  statusSummary: StatusCount[]
+}
+
+export interface LinkableDelivery {
+  id: number
+  customerName: string
+  addressLine: string
+  statusCode: string
+  statusName: string
+  statusColor: string
+  shippingId: number
+  batchCode: string
+}
+
+export interface AddressInput {
+  zipCode?: string | null
+  street: string
+  number?: string | null
+  district?: string | null
+  city: string
+  state: string
+  complement?: string | null
+}
+
+const qs = (params: Record<string, string | number | undefined>) => {
+  const s = new URLSearchParams()
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== '') s.set(k, String(v))
+  }
+  const str = s.toString()
+  return str ? `?${str}` : ''
 }
 
 export const api = {
@@ -45,5 +243,111 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     }),
-  me: () => request<{ userId: string; companyId: string; roleId: string }>('/auth/me'),
+  me: () =>
+    request<{ userId: string; companyId: string; roleId: string; role: string }>('/auth/me'),
+
+  deliveryStatuses: () => request<DeliveryStatus[]>('/delivery-statuses'),
+  drivers: () => request<Driver[]>('/drivers'),
+
+  products: (includeInactive = false) =>
+    request<Product[]>(`/products${includeInactive ? '?all=1' : ''}`),
+  createProduct: (body: ProductInput) =>
+    request<Product>('/products', { method: 'POST', body: JSON.stringify(body) }),
+  updateProduct: (id: string, body: ProductInput) =>
+    request<Product>(`/products/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteProduct: (id: string) =>
+    request<null>(`/products/${id}`, { method: 'DELETE' }),
+
+  customers: (q?: string, opts?: { all?: boolean; stats?: boolean }) =>
+    request<Customer[]>(
+      `/customers${qs({
+        q,
+        all: opts?.all ? 1 : undefined,
+        stats: opts?.stats ? 1 : undefined,
+      })}`,
+    ),
+  createCustomer: (body: {
+    fullName: string
+    phone?: string | null
+    notes?: string | null
+    address?: AddressInput
+  }) => request<Customer>('/customers', { method: 'POST', body: JSON.stringify(body) }),
+  updateCustomer: (id: string, body: CustomerInput) =>
+    request<Customer>(`/customers/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteCustomer: (id: string) =>
+    request<null>(`/customers/${id}`, { method: 'DELETE' }),
+  addAddress: (customerId: string, body: AddressInput) =>
+    request<Address>(`/customers/${customerId}/addresses`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateAddress: (customerId: string, addressId: string, body: AddressInput) =>
+    request<Address>(`/customers/${customerId}/addresses/${addressId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  deleteAddress: (customerId: string, addressId: string) =>
+    request<null>(`/customers/${customerId}/addresses/${addressId}`, { method: 'DELETE' }),
+
+  shippings: (from: string, to: string) =>
+    request<HomePayload>(`/shippings${qs({ from, to })}`),
+  createShipping: (body: {
+    driverUserId: string
+    deliveryDate: string
+    notes?: string | null
+  }) => request<Shipping>('/shippings', { method: 'POST', body: JSON.stringify(body) }),
+  quickAddDelivery: (
+    shippingId: number,
+    body: { customerId: string; addressId: string; notes?: string | null },
+  ) =>
+    request<Delivery>(`/shippings/${shippingId}/deliveries`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  linkableDeliveries: (date: string, excludeShipping: number) =>
+    request<LinkableDelivery[]>(`/deliveries${qs({ date, excludeShipping })}`),
+  linkDelivery: (shippingId: number, deliveryId: number) =>
+    request<Delivery>(`/shippings/${shippingId}/deliveries/${deliveryId}/link`, {
+      method: 'POST',
+    }),
+
+  reorderDeliveries: (shippingId: number, deliveryIds: number[]) =>
+    request<{ deliveries: Delivery[] }>(`/shippings/${shippingId}/deliveries/order`, {
+      method: 'PATCH',
+      body: JSON.stringify({ deliveryIds }),
+    }),
+
+  deliveryProducts: (deliveryId: number) =>
+    request<LinesResponse>(`/deliveries/${deliveryId}/products`),
+  setDeliveryProducts: (deliveryId: number, lines: LineInput[]) =>
+    request<LinesResponse>(`/deliveries/${deliveryId}/products`, {
+      method: 'PUT',
+      body: JSON.stringify({ lines }),
+    }),
+
+  // ---- driver ----
+  myShippings: (date: string) =>
+    request<{ date: string; shippings: Shipping[] }>(`/me/shippings${qs({ date })}`),
+  myShipping: (shippingId: number) => request<Shipping>(`/me/shippings/${shippingId}`),
+  activeDelivery: () =>
+    request<{ active: ActiveDelivery | null }>('/me/active-delivery').then((r) => r.active),
+  startDelivery: (deliveryId: number, geo?: { lat: number; lng: number } | null) =>
+    request<Delivery>(`/deliveries/${deliveryId}/start`, {
+      method: 'POST',
+      body: JSON.stringify(geo ?? {}),
+    }),
+  finishDelivery: (
+    deliveryId: number,
+    body: {
+      outcome: 'COMPLETE' | 'ABSENT' | 'TROUBLE'
+      note?: string
+      lat?: number | null
+      lng?: number | null
+    },
+  ) =>
+    request<Delivery>(`/deliveries/${deliveryId}/finish`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
 }

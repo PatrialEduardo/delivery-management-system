@@ -24,8 +24,8 @@ type loginRequest struct {
 }
 
 type loginResponse struct {
-	AccessToken string     `json:"accessToken"`
-	ExpiresIn   int        `json:"expiresIn"`
+	AccessToken string      `json:"accessToken"`
+	ExpiresIn   int         `json:"expiresIn"`
 	User        userSummary `json:"user"`
 }
 
@@ -33,6 +33,7 @@ type userSummary struct {
 	UserID   string `json:"userId"`
 	FullName string `json:"fullName"`
 	Email    string `json:"email"`
+	Role     string `json:"role"`
 }
 
 // Login is intentionally chatty in its comments: this endpoint is the one
@@ -67,7 +68,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := GenerateToken(u.UserID, u.CompanyID, u.RoleID, h.jwtSecret, h.tokenTTL)
+	token, err := GenerateToken(u.UserID, u.CompanyID, u.RoleID, u.RoleName, h.jwtSecret, h.tokenTTL, time.Now())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not issue token")
 		return
@@ -82,6 +83,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 			UserID:   u.UserID,
 			FullName: u.FullName,
 			Email:    u.Email,
+			Role:     u.RoleName,
 		},
 	})
 }
@@ -99,6 +101,7 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 		"userId":    claims.UserID,
 		"companyId": claims.CompanyID,
 		"roleId":    claims.RoleID,
+		"role":      claims.Role,
 	})
 }
 
